@@ -113,9 +113,9 @@ Expected: 依赖安装成功，三包构建通过，shared 测试 PASS
 PixiJS Application 初始化到 Canvas 元素，加载房间底图渲染在 960×540 世界坐标系内，letterbox 适配任意屏幕尺寸。自定义卡通光标（PC 端替换为卡通箭头，触屏设备不应用）。mitt 事件总线 + Pinia store 搭建。WebGL 不可用时显示降级提示。
 
 **Execution:**
-- **Status:** pending
-- **Commit SHA:** null
-- **Attempts:** 0
+- **Status:** done
+- **Commit SHA:** 75d7e4f
+- **Attempts:** 1
 - **Blocked Reason:** null
 
 - [ ] **Step 1: Write failing test**
@@ -454,9 +454,9 @@ Expected: AudioManager 测试 PASS
 NestJS 应用可启动，Prisma 连接 SQLite，健康检查端点 `GET /health` 返回 200，`GET /tips/random` 返回随机小贴士。数据库 migration 正常执行。
 
 **Execution:**
-- **Status:** pending
-- **Commit SHA:** null
-- **Attempts:** 0
+- **Status:** done
+- **Commit SHA:** fb68335
+- **Attempts:** 1
 - **Blocked Reason:** null
 
 - [ ] **Step 1: Write failing test**
