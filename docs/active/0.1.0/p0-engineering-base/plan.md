@@ -222,9 +222,9 @@ Expected: SceneManager 测试 PASS
 CameraController 管理 Camera 状态，实现 zoom-in/out 动画（GSAP 驱动 world 容器 scale+position），竖屏滑动切换区域，视口外精灵 renderable=false 优化。
 
 **Execution:**
-- **Status:** pending
-- **Commit SHA:** null
-- **Attempts:** 0
+- **Status:** done
+- **Commit SHA:** df92080
+- **Attempts:** 1
 - **Blocked Reason:** null
 
 - [ ] **Step 1: Write failing test**
@@ -334,9 +334,9 @@ Expected: CameraController 测试 PASS
 AudioManager 封装 Howler.js，首次用户交互后解锁 Audio Context，支持环境音循环播放（淡入）和一次性音效触发。加载失败静默降级不抛异常。
 
 **Execution:**
-- **Status:** pending
-- **Commit SHA:** null
-- **Attempts:** 0
+- **Status:** done
+- **Commit SHA:** 5a610c2
+- **Attempts:** 1
 - **Blocked Reason:** null
 
 - [ ] **Step 1: Write failing test**
@@ -557,9 +557,9 @@ Expected: Migration 成功，健康检查 E2E 测试 PASS，Tips 测试 PASS
 `POST /auth/verify` 接收密码，对比 bcrypt hash，正确返回 JWT（含 role），错误返回 401。同 IP 5 分钟内超过 10 次错误返回 429。JWT 有效期 7 天。
 
 **Execution:**
-- **Status:** pending
-- **Commit SHA:** null
-- **Attempts:** 0
+- **Status:** done
+- **Commit SHA:** b14313e
+- **Attempts:** 1
 - **Blocked Reason:** null
 
 - [ ] **Step 1: Write failing test**
