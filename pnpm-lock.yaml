@@ -16,6 +16,9 @@ importers:
       gsap:
         specifier: ^3.12.0
         version: 3.15.0
+      howler:
+        specifier: ^2.2.4
+        version: 2.2.4
       mitt:
         specifier: ^3.0.0
         version: 3.0.1
@@ -29,6 +32,9 @@ importers:
         specifier: ^3.5.0
         version: 3.5.38(typescript@5.5.2)
     devDependencies:
+      '@types/howler':
+        specifier: ^2.2.13
+        version: 2.2.13
       '@vitejs/plugin-vue':
         specifier: ^5.0.0
         version: 5.2.0(vite@6.4.3(@types/node@26.0.0)(terser@5.48.0)(tsx@4.22.4))(vue@3.5.38(typescript@5.5.2))
@@ -1009,6 +1015,9 @@ packages:
   '@types/estree@1.0.9':
     resolution: {integrity: sha512-GhdPgy1el4/ImP05X05Uw4cw2/M93BCUmnEvWZNStlCzEKME4Fkk+YpoA5OiHNQmoS7Cafb8Xa3Pya8m1Qrzeg==}
 
+  '@types/howler@2.2.13':
+    resolution: {integrity: sha512-40+EBjqIHHrC4VShlz/7i0lBUsE3QkgzZinQQji74Hd8sBkJZUBaT7LWFLK6rcabsDOOQpoMbEJvtaFQwxOu/g==}
+
   '@types/json-schema@7.0.15':
     resolution: {integrity: sha512-5+fP8P8MFNC+AyZCDxrB2pkZFPGzqQWUzpSeuuVLvm8VMcorNYavBqoFcxK8bQz4Qsbn4oUEEem4wDLfcysGHA==}
 
@@ -1843,6 +1852,9 @@ packages:
   he@1.2.0:
     resolution: {integrity: sha512-F/1DnUGPopORZi0ni+CvrCgHQ5FyEAHRLSApuYWMmrbSwoN2Mn/7k+Gl38gJnR7yyDZk6WLXwiGod1JOWNDKGw==}
     hasBin: true
+
+  howler@2.2.4:
+    resolution: {integrity: sha512-iARIBPgcQrwtEr+tALF+rapJ8qSc+Set2GJQl7xT1MQzWaVkFebdJhR3alVlSiUf5U7nAANKuj3aWpwerocD5w==}
 
   html-encoding-sniffer@4.0.0:
     resolution: {integrity: sha512-Y22oTqIU4uuPgEemfz7NDJz6OeKf12Lsu+QC+s3BVpda64lTiMYCyGwg5ki4vFxkMwQdeZDl2adZoqUgdFuTgQ==}
@@ -3709,6 +3721,8 @@ snapshots:
 
   '@types/estree@1.0.9': {}
 
+  '@types/howler@2.2.13': {}
+
   '@types/json-schema@7.0.15': {}
 
   '@types/methods@1.1.4': {}
@@ -4726,6 +4740,8 @@ snapshots:
       function-bind: 1.1.2
 
   he@1.2.0: {}
+
+  howler@2.2.4: {}
 
   html-encoding-sniffer@4.0.0:
     dependencies:
