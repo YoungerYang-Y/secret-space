@@ -66,8 +66,8 @@ graph LR
 初始化 pnpm workspace monorepo，三个包可独立构建，shared 的类型能被 client 和 server 引用。根目录 `pnpm dev` 并行启动 client + server。
 
 **Execution:**
-- **Status:** in_progress
-- **Commit SHA:** null
+- **Status:** done
+- **Commit SHA:** 0b81a0b
 - **Attempts:** 1
 - **Blocked Reason:** null
 

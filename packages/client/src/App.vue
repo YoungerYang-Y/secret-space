@@ -2,5 +2,5 @@
 </script>
 
 <template>
-  <h1>果果的秘密空间</h1>
+  <div id="app">果果的秘密空间</div>
 </template>
