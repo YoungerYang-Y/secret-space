@@ -26,15 +26,19 @@ export class CameraController {
     const cy = zone.bounds.y + zone.bounds.h / 2
     const targetX = this.viewport.viewportWidth / 2 - cx * targetScale
     const targetY = this.viewport.viewportHeight / 2 - cy * targetScale
-    await gsap.to(this.world, { x: targetX, y: targetY, duration: 0.6 })
-    await gsap.to(this.world.scale, { x: targetScale, y: targetScale, duration: 0.6 })
+    await Promise.all([
+      gsap.to(this.world, { x: targetX, y: targetY, duration: 0.6, ease: 'power2.inOut' }),
+      gsap.to(this.world.scale, { x: targetScale, y: targetScale, duration: 0.6, ease: 'power2.inOut' }),
+    ])
     this.state = { mode: 'zoomed', currentZoneId: zoneId, scale: targetScale, isTransitioning: false }
   }
 
   async zoomOut(): Promise<void> {
     this.state.isTransitioning = true
-    await gsap.to(this.world, { x: 0, y: 0, duration: 0.5 })
-    await gsap.to(this.world.scale, { x: 1, y: 1, duration: 0.5 })
+    await Promise.all([
+      gsap.to(this.world, { x: 0, y: 0, duration: 0.5, ease: 'power2.inOut' }),
+      gsap.to(this.world.scale, { x: 1, y: 1, duration: 0.5, ease: 'power2.inOut' }),
+    ])
     this.state = { mode: 'overview', currentZoneId: null, scale: 1, isTransitioning: false }
   }
 
@@ -44,7 +48,14 @@ export class CameraController {
     const idx = ZONES.findIndex(z => z.id === this.state.currentZoneId)
     const next = direction === 'right' ? idx + 1 : idx - 1
     if (next < 0 || next >= ZONES.length) return
-    this.state.currentZoneId = ZONES[next].id
+    const zone = ZONES[next]
+    this.state.currentZoneId = zone.id
+    const targetScale = this.state.scale
+    const cx = zone.bounds.x + zone.bounds.w / 2
+    const cy = zone.bounds.y + zone.bounds.h / 2
+    const targetX = this.viewport.viewportWidth / 2 - cx * targetScale
+    const targetY = this.viewport.viewportHeight / 2 - cy * targetScale
+    gsap.to(this.world, { x: targetX, y: targetY, duration: 0.3, ease: 'power2.out' })
   }
 
   updateViewport(viewport: { viewportWidth: number; viewportHeight: number }): void {

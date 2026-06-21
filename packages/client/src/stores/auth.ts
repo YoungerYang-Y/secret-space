@@ -1,5 +1,7 @@
 import { ref, computed } from 'vue'
 import { defineStore } from 'pinia'
+import type { AuthVerifyResponse } from '@secret-space/shared'
+import { AuthRole } from '@secret-space/shared'
 
 export const useAuthStore = defineStore('auth', () => {
   const token = ref<string | null>(null)

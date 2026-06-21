@@ -1,16 +1,19 @@
-import { Application, Container, Sprite, Assets } from 'pixi.js'
+import { Application, Container } from 'pixi.js'
+import { applyCursor } from './cursor'
 
 export class SceneManager {
   app: Application | null = null
   world: Container = new Container()
+  private resizeHandler: (() => void) | null = null
 
   async init(canvas: HTMLCanvasElement): Promise<void> {
     this.app = new Application()
     await this.app.init({ canvas, resizeTo: window, background: '#000000' })
     this.app.stage.addChild(this.world)
     this.fitCamera()
-    window.addEventListener('resize', () => this.fitCamera())
-    this.applyCursor(canvas)
+    this.resizeHandler = () => this.fitCamera()
+    window.addEventListener('resize', this.resizeHandler)
+    applyCursor(canvas)
   }
 
   private fitCamera(): void {
@@ -20,12 +23,11 @@ export class SceneManager {
     this.world.y = (window.innerHeight - 540 * scale) / 2
   }
 
-  private applyCursor(canvas: HTMLCanvasElement): void {
-    if (navigator.maxTouchPoints > 0) return
-    canvas.style.cursor = 'url(/assets/cursor-default.png), auto'
-  }
-
   destroy(): void {
+    if (this.resizeHandler) {
+      window.removeEventListener('resize', this.resizeHandler)
+      this.resizeHandler = null
+    }
     if (this.app) {
       this.app.destroy(true)
       this.app = null

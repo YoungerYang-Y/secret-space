@@ -1,11 +1,11 @@
 packages:
   - 'packages/*'
 allowBuilds:
-  '@nestjs/core': set this to true or false
-  '@prisma/client': set this to true or false
-  '@prisma/engines': set this to true or false
+  '@nestjs/core': true
+  '@prisma/client': true
+  '@prisma/engines': true
   '@swc/core': true
   bcrypt: true
   esbuild: true
-  prisma: set this to true or false
-  vue-demi: set this to true or false
+  prisma: true
+  vue-demi: true

@@ -673,9 +673,9 @@ Expected: auth 测试 PASS（正确密码、错误密码、限流）
 完整首屏流程：密码页 → 认证 → 加载页（loading 动画 + 小贴士 + 进度）→ 开门动画（1.5 秒）→ 场景渲染。已认证用户跳过密码页。过期令牌自动清除回到密码页。LoadingOrchestrator 管理资源加载进度回调和超时（15s）。
 
 **Execution:**
-- **Status:** pending
-- **Commit SHA:** null
-- **Attempts:** 0
+- **Status:** done
+- **Commit SHA:** 2b593e4
+- **Attempts:** 1
 - **Blocked Reason:** null
 
 - [ ] **Step 1: Write failing test**
