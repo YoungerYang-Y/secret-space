@@ -1,20 +1,9 @@
 node_modules
 dist
-dist-ssr
-*.local
-*.log
-
-# Editor
-.vscode/*
-!.vscode/extensions.json
-.idea
-.DS_Store
-*.suo
-*.sw?
-
-# Env
 .env
-.env.*
-
-# Active design docs (WIP, not committed until finalized)
-docs/active/
+.env.test
+*.local
+.DS_Store
+coverage
+*.tsbuildinfo
+*.db
