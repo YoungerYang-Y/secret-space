@@ -16,3 +16,20 @@ model Tip {
   id   Int    @id @default(autoincrement())
   text String
 }
+
+model Province {
+  code    String  @id
+  name    String
+  visited Boolean @default(false)
+  photos  Photo[]
+}
+
+model Photo {
+  id           Int      @id @default(autoincrement())
+  provinceCode String
+  province     Province @relation(fields: [provinceCode], references: [code])
+  url          String
+  annotation   String?
+  order        Int      @default(0)
+  createdAt    DateTime @default(now())
+}

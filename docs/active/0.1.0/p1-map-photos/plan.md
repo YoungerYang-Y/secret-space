@@ -2,9 +2,9 @@
 
 - **Branch:** feat/p1-map-photos
 - **Baseline SHA:** c87254569119a73ae908c6fb37b43df3b23dc099
-- **Worktree Path:** [待填充]
-- **Started At:** [待填充]
-- **Updated At:** [待填充]
+- **Worktree Path:** /home/yangyang/workspace/codes/YoungerYang/secret-space
+- **Started At:** 2026-06-23T07:37:00+08:00
+- **Updated At:** 2026-06-23T07:37:00+08:00
 - **Goal:** 实现墙面中国地图交互 + 照片瀑布流浏览 + 管理后台上传管理
 - **Architecture:** NestJS 后端新增 Province/Photo 模块 + R2 presign 服务；前端 DOM 层叠 SVG 地图 + 照片面板组件；独立 admin 包通过 Element Plus 实现管理后台。
 - **Tech Stack:** NestJS, Prisma (SQLite), Cloudflare R2 (@aws-sdk/client-s3), Vue 3, Pinia, Vite, Element Plus, SVG DOM overlay
