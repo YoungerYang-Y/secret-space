@@ -1,0 +1,39 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 700" fill="none">
+  <!-- 简化中国地图 SVG - 每省份一个 path，带 data-code 属性 -->
+  <g id="china-map" stroke="#ddd" stroke-width="0.5">
+    <path data-code="xinjiang" d="M80,80 L200,60 L240,120 L220,200 L150,220 L60,180 Z"/>
+    <path data-code="xizang" d="M60,220 L150,220 L220,200 L200,300 L120,340 L40,300 Z"/>
+    <path data-code="neimenggu" d="M240,60 L400,40 L500,80 L480,140 L380,160 L280,140 L240,120 Z"/>
+    <path data-code="qinghai" d="M150,220 L240,200 L300,220 L280,300 L200,300 Z"/>
+    <path data-code="gansu" d="M240,160 L320,140 L380,160 L360,200 L300,220 L240,200 Z"/>
+    <path data-code="ningxia" d="M340,160 L370,150 L380,180 L360,200 L340,190 Z"/>
+    <path data-code="shaanxi" d="M360,200 L400,180 L420,240 L400,300 L360,280 L340,240 Z"/>
+    <path data-code="sichuan" d="M200,300 L280,300 L340,280 L360,340 L320,400 L240,380 L200,340 Z"/>
+    <path data-code="yunnan" d="M200,400 L280,380 L320,420 L300,500 L220,480 L180,440 Z"/>
+    <path data-code="guizhou" d="M320,400 L380,380 L400,420 L360,460 L300,440 Z"/>
+    <path data-code="guangxi" d="M280,460 L360,460 L400,500 L360,540 L280,520 Z"/>
+    <path data-code="hainan" d="M340,580 L370,570 L380,600 L350,610 Z"/>
+    <path data-code="chongqing" d="M360,320 L400,300 L420,340 L400,360 L370,350 Z"/>
+    <path data-code="hubei" d="M400,300 L460,280 L500,320 L480,360 L420,360 L400,340 Z"/>
+    <path data-code="hunan" d="M400,360 L460,360 L480,420 L440,460 L380,440 L360,400 Z"/>
+    <path data-code="guangdong" d="M400,460 L480,440 L540,480 L520,540 L440,540 L380,500 Z"/>
+    <path data-code="hongkong" d="M520,530 L540,525 L545,540 L525,545 Z"/>
+    <path data-code="macau" d="M490,540 L505,535 L510,548 L495,552 Z"/>
+    <path data-code="fujian" d="M540,380 L580,360 L600,420 L580,460 L540,440 Z"/>
+    <path data-code="taiwan" d="M620,400 L640,380 L650,440 L630,460 Z"/>
+    <path data-code="jiangxi" d="M480,360 L540,340 L560,400 L540,440 L480,420 Z"/>
+    <path data-code="zhejiang" d="M560,320 L600,300 L620,360 L580,380 L540,360 Z"/>
+    <path data-code="anhui" d="M480,260 L540,240 L560,300 L540,340 L480,320 Z"/>
+    <path data-code="jiangsu" d="M540,220 L600,200 L620,260 L600,300 L560,280 L540,240 Z"/>
+    <path data-code="shanghai" d="M600,270 L620,260 L625,285 L605,290 Z"/>
+    <path data-code="henan" d="M400,240 L460,220 L500,260 L480,300 L420,280 Z"/>
+    <path data-code="shandong" d="M460,180 L540,160 L580,200 L560,240 L500,240 L460,220 Z"/>
+    <path data-code="hebei" d="M420,120 L480,100 L520,140 L500,180 L460,180 L420,160 Z"/>
+    <path data-code="beijing" d="M460,110 L480,105 L485,125 L465,130 Z"/>
+    <path data-code="tianjin" d="M485,125 L505,120 L510,140 L490,145 Z"/>
+    <path data-code="shanxi" d="M380,160 L420,140 L440,200 L420,240 L380,220 Z"/>
+    <path data-code="liaoning" d="M520,100 L580,80 L620,120 L600,160 L560,160 L520,140 Z"/>
+    <path data-code="jilin" d="M580,60 L650,50 L680,90 L650,120 L600,110 L580,80 Z"/>
+    <path data-code="heilongjiang" d="M580,10 L680,10 L720,50 L700,90 L650,80 L600,50 Z"/>
+  </g>
+</svg>

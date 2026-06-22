@@ -9,6 +9,8 @@ export default defineConfig({
       '/auth': 'http://localhost:3000',
       '/tips': 'http://localhost:3000',
       '/health': 'http://localhost:3000',
+      '/provinces': 'http://localhost:3000',
+      '/photos': 'http://localhost:3000',
     },
   },
   test: {
