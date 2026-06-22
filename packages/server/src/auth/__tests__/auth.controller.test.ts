@@ -1,7 +1,8 @@
 import { Test } from '@nestjs/testing'
-import { INestApplication } from '@nestjs/common'
+import { INestApplication, ValidationPipe } from '@nestjs/common'
 import request from 'supertest'
 import { AppModule } from '../../app.module'
+import { RateLimitGuard } from '../rate-limit.guard'
 
 describe('POST /auth/verify', () => {
   let app: INestApplication
@@ -9,9 +10,11 @@ describe('POST /auth/verify', () => {
   beforeAll(async () => {
     const module = await Test.createTestingModule({ imports: [AppModule] }).compile()
     app = module.createNestApplication()
+    app.useGlobalPipes(new ValidationPipe({ whitelist: true }))
     await app.init()
   })
   afterAll(() => app.close())
+  beforeEach(() => { RateLimitGuard.attempts.clear() })
 
   it('returns JWT with role=owner for correct owner password', async () => {
     const res = await request(app.getHttpServer())
