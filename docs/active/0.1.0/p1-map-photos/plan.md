@@ -4,7 +4,7 @@
 - **Baseline SHA:** c87254569119a73ae908c6fb37b43df3b23dc099
 - **Worktree Path:** /home/yangyang/workspace/codes/YoungerYang/secret-space
 - **Started At:** 2026-06-23T07:37:00+08:00
-- **Updated At:** 2026-06-23T07:37:00+08:00
+- **Updated At:** 2026-06-23T07:50:00+08:00
 - **Goal:** 实现墙面中国地图交互 + 照片瀑布流浏览 + 管理后台上传管理
 - **Architecture:** NestJS 后端新增 Province/Photo 模块 + R2 presign 服务；前端 DOM 层叠 SVG 地图 + 照片面板组件；独立 admin 包通过 Element Plus 实现管理后台。
 - **Tech Stack:** NestJS, Prisma (SQLite), Cloudflare R2 (@aws-sdk/client-s3), Vue 3, Pinia, Vite, Element Plus, SVG DOM overlay
@@ -54,9 +54,9 @@ T4 --> T5
 新增 Province 和 Photo 模型，seed 硬编码 34 省数据。Province API 提供 GET /provinces（公开）和 PUT /provinces/:code（admin）。Photo API 提供 GET /provinces/:code/photos（公开）。
 
 **Execution:**
-- **Status:** pending
-- **Commit SHA:** null
-- **Attempts:** 0
+- **Status:** done
+- **Commit SHA:** 50bb156
+- **Attempts:** 1
 - **Blocked Reason:** null
 
 - [ ] **Step 1: Write failing test**
@@ -114,9 +114,9 @@ Expected: 所有省份相关测试通过
 AuthService.verify 新增 admin 角色检查。RolesGuard 从 JWT 提取 role 并校验 @Roles('admin') 装饰器，非 admin 返回 403。
 
 **Execution:**
-- **Status:** pending
-- **Commit SHA:** null
-- **Attempts:** 0
+- **Status:** done
+- **Commit SHA:** see git log
+- **Attempts:** 1
 - **Blocked Reason:** null
 
 - [ ] **Step 1: Write failing test**
@@ -163,9 +163,9 @@ Expected: RolesGuard 单元测试通过
 R2Service 封装 @aws-sdk/client-s3 的 presign 和 delete 操作。Photo 管理 API（POST /photos/presign, POST /photos, PUT /photos/reorder, PUT /photos/:id, DELETE /photos/:id）需 admin 角色。
 
 **Execution:**
-- **Status:** pending
-- **Commit SHA:** null
-- **Attempts:** 0
+- **Status:** done
+- **Commit SHA:** see git log
+- **Attempts:** 1
 - **Blocked Reason:** null
 
 - [ ] **Step 1: Write failing test**
@@ -226,9 +226,9 @@ Expected: Photo admin API 测试通过
 从 DataV GeoAtlas 获取简化中国地图 SVG 放入 assets。MapOverlay 组件在 Camera zoom-in 墙面时显示，渲染 SVG 地图，已去过省份高亮可点击，未去过省份灰色不可点。mapStore 管理省份列表数据。
 
 **Execution:**
-- **Status:** pending
-- **Commit SHA:** null
-- **Attempts:** 0
+- **Status:** done
+- **Commit SHA:** see git log
+- **Attempts:** 1
 - **Blocked Reason:** null
 
 - [ ] **Step 1: Write failing test**
@@ -274,9 +274,9 @@ Expected: mapStore 测试通过
 PhotoPanel 接收 provinceCode，从 API 加载照片列表，瀑布流布局展示。支持懒加载、标注 hover 显示、空状态提示。面板从省份位置展开动画打开/关闭。
 
 **Execution:**
-- **Status:** pending
-- **Commit SHA:** null
-- **Attempts:** 0
+- **Status:** done
+- **Commit SHA:** see git log
+- **Attempts:** 1
 - **Blocked Reason:** null
 
 - [ ] **Step 1: Write failing test**
@@ -332,9 +332,9 @@ Expected: PhotoPanel 测试通过
 独立 admin 包，Vue 3 + Vite + Element Plus + Pinia。登录页验证 admin 密码获取 JWT。省份管理页展示 34 省可切换 visited。照片管理页支持 presign 直传 R2 + 拖拽排序 + 标注编辑 + 删除。
 
 **Execution:**
-- **Status:** pending
-- **Commit SHA:** null
-- **Attempts:** 0
+- **Status:** done
+- **Commit SHA:** see git log
+- **Attempts:** 1
 - **Blocked Reason:** null
 
 - [ ] **Step 1: Write failing test**
