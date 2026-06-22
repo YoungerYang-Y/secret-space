@@ -5,7 +5,7 @@ import { AuthVerifyResponse } from '@secret-space/shared'
 import * as bcrypt from 'bcrypt'
 import * as jwt from 'jsonwebtoken'
 
-const JWT_SECRET = process.env.JWT_SECRET || (() => {
+export const JWT_SECRET = process.env.JWT_SECRET || (() => {
   if (process.env.NODE_ENV === 'production') throw new Error('JWT_SECRET must be set in production')
   return 'secret-space-dev-key'
 })()
@@ -22,6 +22,10 @@ export class AuthService {
     const visitorHash = await this.prisma.config.findUnique({ where: { key: 'visitor_password_hash' } })
     if (visitorHash && await bcrypt.compare(password, visitorHash.value)) {
       return { token: this.signToken('visitor'), role: 'visitor' }
+    }
+    const adminHash = await this.prisma.config.findUnique({ where: { key: 'admin_password_hash' } })
+    if (adminHash && await bcrypt.compare(password, adminHash.value)) {
+      return { token: this.signToken('admin'), role: 'admin' }
     }
     RateLimitGuard.recordFailure(ip)
     throw new UnauthorizedException('密码不对哦')
