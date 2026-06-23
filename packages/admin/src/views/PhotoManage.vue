@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
-import { useRoute } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 import axios from 'axios'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import draggable from 'vuedraggable'
@@ -14,6 +14,7 @@ interface Photo {
 }
 
 const route = useRoute()
+const router = useRouter()
 const authStore = useAdminAuthStore()
 const code = route.params.code as string
 const photos = ref<Photo[]>([])
@@ -88,20 +89,43 @@ onMounted(fetchPhotos)
 </script>
 
 <template>
-  <div style="padding: 24px">
-    <h2>照片管理 - {{ code }}</h2>
-    <div style="margin-bottom: 16px">
-      <input type="file" accept="image/*" @change="onFileChange" :disabled="uploading" />
+  <div class="page">
+    <div class="page-header">
+      <div class="header-left">
+        <el-button text @click="router.push('/provinces')">← 返回</el-button>
+        <h2>{{ code }} · 照片管理</h2>
+      </div>
+      <div class="header-right">
+        <span class="photo-count">{{ photos.length }} 张照片</span>
+      </div>
     </div>
+
+    <el-card shadow="never" class="upload-card">
+      <label class="upload-area" :class="{ disabled: uploading }">
+        <input type="file" accept="image/*" @change="onFileChange" :disabled="uploading" />
+        <span v-if="uploading">上传中...</span>
+        <span v-else>📷 点击上传照片</span>
+      </label>
+      <p class="upload-tip">拖拽照片卡片可调整排序，松手自动保存</p>
+    </el-card>
+
+    <div v-if="photos.length === 0 && !uploading" class="empty">
+      <p>暂无照片，点击上方上传</p>
+    </div>
+
     <draggable v-model="photos" item-key="id" class="photo-grid" @end="saveOrder">
       <template #item="{ element: photo }">
         <div class="photo-card">
-          <img :src="photo.url" />
-          <div class="photo-actions">
-            <el-button size="small" @click="updateAnnotation(photo)">标注</el-button>
-            <el-button size="small" type="danger" @click="deletePhoto(photo)">删除</el-button>
+          <div class="photo-img-wrap">
+            <img :src="photo.url" loading="lazy" />
           </div>
-          <div v-if="photo.annotation" class="photo-ann">{{ photo.annotation }}</div>
+          <div class="photo-footer">
+            <span class="photo-ann">{{ photo.annotation || '无标注' }}</span>
+            <div class="photo-actions">
+              <el-button type="primary" text size="small" @click="updateAnnotation(photo)">标注</el-button>
+              <el-button type="danger" text size="small" @click="deletePhoto(photo)">删除</el-button>
+            </div>
+          </div>
         </div>
       </template>
     </draggable>
@@ -109,28 +133,109 @@ onMounted(fetchPhotos)
 </template>
 
 <style scoped>
-.photo-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
-  gap: 12px;
+.page {
+  padding: 0;
 }
-.photo-card {
-  border: 1px solid #eee;
-  border-radius: 6px;
-  overflow: hidden;
-}
-.photo-card img {
-  width: 100%;
-  display: block;
-}
-.photo-actions {
-  padding: 8px;
+.page-header {
   display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 20px;
+}
+.header-left {
+  display: flex;
+  align-items: center;
   gap: 8px;
 }
-.photo-ann {
-  padding: 4px 8px;
-  font-size: 12px;
+.header-left h2 {
+  margin: 0;
+  font-size: 20px;
+  color: #1d1e2c;
+}
+.photo-count {
+  color: #999;
+  font-size: 14px;
+}
+.upload-card {
+  margin-bottom: 20px;
+}
+.upload-area {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 80px;
+  border: 2px dashed #dcdfe6;
+  border-radius: 8px;
+  cursor: pointer;
   color: #666;
+  font-size: 15px;
+  transition: border-color 0.2s, background 0.2s;
+}
+.upload-area:hover {
+  border-color: #409eff;
+  background: #f0f7ff;
+}
+.upload-area.disabled {
+  opacity: 0.5;
+  pointer-events: none;
+}
+.upload-area input {
+  display: none;
+}
+.upload-tip {
+  margin: 8px 0 0;
+  font-size: 12px;
+  color: #bbb;
+}
+.empty {
+  text-align: center;
+  padding: 60px 0;
+  color: #ccc;
+  font-size: 14px;
+}
+.photo-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 16px;
+}
+.photo-card {
+  background: #fff;
+  border-radius: 8px;
+  overflow: hidden;
+  box-shadow: 0 1px 4px rgba(0,0,0,0.06);
+  cursor: grab;
+  transition: box-shadow 0.2s, transform 0.2s;
+}
+.photo-card:hover {
+  box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+  transform: translateY(-2px);
+}
+.photo-img-wrap {
+  aspect-ratio: 4/3;
+  overflow: hidden;
+  background: #f5f5f5;
+}
+.photo-img-wrap img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.photo-footer {
+  padding: 10px 12px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.photo-ann {
+  font-size: 12px;
+  color: #999;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 100px;
+}
+.photo-actions {
+  display: flex;
+  gap: 4px;
 }
 </style>
