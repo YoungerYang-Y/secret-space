@@ -1,6 +1,7 @@
 export enum AuthRole {
   OWNER = 'owner',
   VISITOR = 'visitor',
+  ADMIN = 'admin',
 }
 
 export interface AuthVerifyRequest {
@@ -9,5 +10,5 @@ export interface AuthVerifyRequest {
 
 export interface AuthVerifyResponse {
   token: string
-  role: 'owner' | 'visitor'
+  role: 'owner' | 'visitor' | 'admin'
 }
