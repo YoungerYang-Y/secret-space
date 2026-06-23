@@ -1,6 +1,7 @@
 import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common'
 import { PrismaService } from '../prisma/prisma.service'
 import { R2Service } from '../r2/r2.service'
+import { ProvinceService } from '../province/province.service'
 import { extname } from 'path'
 
 @Injectable()
@@ -8,17 +9,20 @@ export class PhotoService {
   constructor(
     private prisma: PrismaService,
     private r2: R2Service,
+    private provinceService: ProvinceService,
   ) {}
 
   async presign(provinceCode: string, filename: string, contentType: string) {
     if (!contentType.startsWith('image/')) {
       throw new BadRequestException('不支持的文件类型')
     }
+    await this.provinceService.findByCode(provinceCode)
     const ext = extname(filename) || '.webp'
     return this.r2.presign(provinceCode, ext, contentType)
   }
 
-  async create(data: { provinceCode: string; url: string; annotation?: string; order: number }) {
+  async create(data: { provinceCode: string; url: string; key: string; annotation?: string; order: number }) {
+    await this.provinceService.findByCode(data.provinceCode)
     const photo = await this.prisma.photo.create({ data })
     return { id: photo.id, url: photo.url, annotation: photo.annotation, order: photo.order }
   }
@@ -53,8 +57,8 @@ export class PhotoService {
     const photo = await this.prisma.photo.findUnique({ where: { id } })
     if (!photo) throw new NotFoundException('照片不存在')
     await this.prisma.photo.delete({ where: { id } })
-    // Best-effort R2 cleanup
-    const key = photo.url.replace(/^https?:\/\/[^/]+\//, '')
-    await this.r2.delete(key)
+    if (photo.key) {
+      await this.r2.delete(photo.key)
+    }
   }
 }

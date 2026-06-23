@@ -29,6 +29,7 @@ model Photo {
   provinceCode String
   province     Province @relation(fields: [provinceCode], references: [code])
   url          String
+  key          String   @default("")
   annotation   String?
   order        Int      @default(0)
   createdAt    DateTime @default(now())

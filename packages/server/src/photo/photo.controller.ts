@@ -2,6 +2,7 @@ import { Controller, Post, Put, Delete, Body, Param, UseGuards, HttpCode, ParseI
 import { PhotoService } from './photo.service'
 import { RolesGuard } from '../auth/roles.guard'
 import { Roles } from '../auth/roles.decorator'
+import { PresignDto, CreatePhotoDto, ReorderDto, UpdatePhotoDto } from './dto/photo.dto'
 
 @Controller('photos')
 @UseGuards(RolesGuard)
@@ -11,23 +12,23 @@ export class PhotoController {
 
   @Post('presign')
   @HttpCode(200)
-  presign(@Body() body: { provinceCode: string; filename: string; contentType: string }) {
+  presign(@Body() body: PresignDto) {
     return this.photoService.presign(body.provinceCode, body.filename, body.contentType)
   }
 
   @Post()
   @HttpCode(201)
-  create(@Body() body: { provinceCode: string; url: string; annotation?: string; order: number }) {
+  create(@Body() body: CreatePhotoDto) {
     return this.photoService.create(body)
   }
 
   @Put('reorder')
-  reorder(@Body() body: { provinceCode: string; photoIds: number[] }) {
+  reorder(@Body() body: ReorderDto) {
     return this.photoService.reorder(body.provinceCode, body.photoIds)
   }
 
   @Put(':id')
-  update(@Param('id', ParseIntPipe) id: number, @Body() body: { annotation?: string }) {
+  update(@Param('id', ParseIntPipe) id: number, @Body() body: UpdatePhotoDto) {
     return this.photoService.update(id, body)
   }
 

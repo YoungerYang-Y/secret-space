@@ -29,6 +29,10 @@ watch(
     empty.value = false
     try {
       const res = await fetch(`/provinces/${code}/photos`)
+      if (!res.ok) {
+        empty.value = true
+        return
+      }
       const data = await res.json()
       photos.value = data
       empty.value = data.length === 0

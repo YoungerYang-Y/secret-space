@@ -3,6 +3,7 @@ import { ref, onMounted } from 'vue'
 import { useRoute } from 'vue-router'
 import axios from 'axios'
 import { ElMessage, ElMessageBox } from 'element-plus'
+import draggable from 'vuedraggable'
 import { useAdminAuthStore } from '../stores/auth'
 
 interface Photo {
@@ -90,18 +91,19 @@ onMounted(fetchPhotos)
     <h2>照片管理 - {{ code }}</h2>
     <div style="margin-bottom: 16px">
       <input type="file" accept="image/*" @change="onFileChange" :disabled="uploading" />
-      <el-button v-if="photos.length > 1" type="success" size="small" style="margin-left: 12px" @click="saveOrder">保存排序</el-button>
     </div>
-    <div class="photo-grid">
-      <div v-for="(photo, index) in photos" :key="photo.id" class="photo-card">
-        <img :src="photo.url" />
-        <div class="photo-actions">
-          <el-button size="small" @click="updateAnnotation(photo)">标注</el-button>
-          <el-button size="small" type="danger" @click="deletePhoto(photo)">删除</el-button>
+    <draggable v-model="photos" item-key="id" class="photo-grid" @end="saveOrder">
+      <template #item="{ element: photo }">
+        <div class="photo-card">
+          <img :src="photo.url" />
+          <div class="photo-actions">
+            <el-button size="small" @click="updateAnnotation(photo)">标注</el-button>
+            <el-button size="small" type="danger" @click="deletePhoto(photo)">删除</el-button>
+          </div>
+          <div v-if="photo.annotation" class="photo-ann">{{ photo.annotation }}</div>
         </div>
-        <div v-if="photo.annotation" class="photo-ann">{{ photo.annotation }}</div>
-      </div>
-    </div>
+      </template>
+    </draggable>
   </div>
 </template>
 

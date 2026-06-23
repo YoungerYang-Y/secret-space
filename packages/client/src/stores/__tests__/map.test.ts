@@ -10,6 +10,7 @@ const mockProvinces = Array.from({ length: 34 }, (_, i) => ({
 }))
 
 global.fetch = vi.fn().mockResolvedValue({
+  ok: true,
   json: () => Promise.resolve(mockProvinces),
 }) as any
 
