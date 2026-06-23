@@ -44,6 +44,7 @@ async function handleUpload(file: File) {
     await axios.post('/photos', {
       provinceCode: code,
       url: presignRes.data.publicUrl,
+      key: presignRes.data.key,
       order: photos.value.length,
     }, { headers: headers() })
 
