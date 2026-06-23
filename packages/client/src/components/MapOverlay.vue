@@ -50,15 +50,15 @@ function handleClick(e: MouseEvent) {
     class="map-overlay"
     @click="handleClick"
   >
-    <div class="map-header">
-      <span class="map-title">我们的足迹</span>
-      <span class="map-count">已点亮 {{ mapStore.visitedCount }}/34</span>
-    </div>
     <div
       ref="svgContainer"
       class="map-svg"
       v-html="chinaSvg"
     />
+    <div class="map-header">
+      <span class="map-title">我们的足迹</span>
+      <span class="map-count">{{ mapStore.visitedCount }}/34</span>
+    </div>
   </div>
 </template>
 
@@ -68,15 +68,16 @@ function handleClick(e: MouseEvent) {
   inset: 0;
   z-index: 10;
   display: flex;
-  flex-direction: column;
   align-items: center;
   justify-content: center;
   pointer-events: auto;
+  background: rgba(255, 255, 255, 0.92);
 }
 
 .map-header {
-  text-align: center;
-  margin-bottom: 8px;
+  position: absolute;
+  top: 16px;
+  left: 16px;
 }
 
 .map-title {
@@ -86,14 +87,23 @@ function handleClick(e: MouseEvent) {
 }
 
 .map-count {
-  margin-left: 12px;
+  margin-left: 8px;
   font-size: 14px;
   color: #666;
 }
 
 .map-svg {
-  width: 80%;
-  max-width: 500px;
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.map-svg :deep(svg) {
+  max-width: 100%;
+  max-height: 100vh;
+  object-fit: contain;
 }
 
 .map-svg :deep(path[data-code]) {

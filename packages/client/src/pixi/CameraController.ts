@@ -12,9 +12,11 @@ export interface CameraState {
 export class CameraController {
   state: CameraState = { mode: 'overview', currentZoneId: null, scale: 1, isTransitioning: false }
   private viewport: { viewportWidth: number; viewportHeight: number }
+  private initialTransform: { x: number; y: number; scale: number }
 
   constructor(private world: Container, viewport: { viewportWidth: number; viewportHeight: number }) {
     this.viewport = viewport
+    this.initialTransform = { x: world.x, y: world.y, scale: world.scale.x }
   }
 
   async zoomIn(zoneId: string): Promise<void> {
@@ -35,11 +37,12 @@ export class CameraController {
 
   async zoomOut(): Promise<void> {
     this.state.isTransitioning = true
+    const { x, y, scale } = this.initialTransform
     await Promise.all([
-      gsap.to(this.world, { x: 0, y: 0, duration: 0.5, ease: 'power2.inOut' }),
-      gsap.to(this.world.scale, { x: 1, y: 1, duration: 0.5, ease: 'power2.inOut' }),
+      gsap.to(this.world, { x, y, duration: 0.5, ease: 'power2.inOut' }),
+      gsap.to(this.world.scale, { x: scale, y: scale, duration: 0.5, ease: 'power2.inOut' }),
     ])
-    this.state = { mode: 'overview', currentZoneId: null, scale: 1, isTransitioning: false }
+    this.state = { mode: 'overview', currentZoneId: null, scale, isTransitioning: false }
   }
 
   swipeTo(direction: 'left' | 'right'): void {

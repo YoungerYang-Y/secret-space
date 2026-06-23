@@ -55,18 +55,22 @@ function handlePanelClose() {
 
 <template>
   <div class="scene-page">
-    <canvas ref="canvasRef" @dblclick="handleZoomInWall"></canvas>
+    <canvas ref="canvasRef"></canvas>
     <div v-if="!sceneStore.isReady" class="fallback">
       <p>需要支持 WebGL 的现代浏览器才能查看果果的小屋 🏠</p>
     </div>
     <MapOverlay :visible="mapVisible" @province-click="handleProvinceClick" />
+    <div v-if="!mapVisible && sceneStore.isReady" class="map-entry" @click="handleZoomInWall">
+      <img src="../assets/china-map.svg" alt="地图" class="map-entry-icon" />
+      <span class="map-entry-label">足迹地图</span>
+    </div>
     <PhotoPanel
       v-if="selectedProvince"
       :province-code="selectedProvince"
       :origin-rect="null"
       @close="handlePanelClose"
     />
-    <button v-if="mapVisible && !selectedProvince" class="back-btn" @click="handleZoomOut">← 返回</button>
+    <button v-if="mapVisible && !selectedProvince" class="close-btn" @click="handleZoomOut">✕</button>
   </div>
 </template>
 
@@ -92,16 +96,50 @@ canvas {
   color: white;
   font-size: 16px;
 }
-.back-btn {
+.map-entry {
+  position: absolute;
+  top: 15%;
+  left: 12%;
+  z-index: 5;
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  transition: opacity 0.2s, transform 0.2s;
+  /* 等距视角左墙倾斜 */
+  transform: rotateX(10deg) rotateY(25deg) skewY(-15deg);
+}
+.map-entry:hover {
+  opacity: 1;
+  transform: rotateX(10deg) rotateY(25deg) skewY(-15deg) scale(1.05);
+}
+.map-entry-icon {
+  width: 160px;
+  height: 134px;
+  filter: drop-shadow(0 2px 6px rgba(0,0,0,0.3));
+  background: rgba(255,255,255,0.7);
+  border-radius: 4px;
+  padding: 8px;
+}
+.map-entry-label {
+  font-size: 12px;
+  color: #fff;
+  text-shadow: 0 1px 3px rgba(0,0,0,0.6);
+}
+.close-btn {
   position: absolute;
   top: 16px;
-  left: 16px;
+  right: 16px;
   z-index: 25;
   background: rgba(255,255,255,0.9);
   border: none;
-  border-radius: 20px;
-  padding: 8px 16px;
-  font-size: 14px;
+  border-radius: 50%;
+  width: 36px;
+  height: 36px;
+  font-size: 18px;
   cursor: pointer;
+  line-height: 36px;
+  text-align: center;
 }
 </style>
