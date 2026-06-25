@@ -7,6 +7,7 @@ import { useAlbumStore } from '../stores/album'
 import MapOverlay from '../components/MapOverlay.vue'
 import PhotoPanel from '../components/PhotoPanel.vue'
 import BookshelfOverlay from '../components/BookshelfOverlay.vue'
+import AlbumViewer from '../components/AlbumViewer.vue'
 
 const sceneStore = useSceneStore()
 const albumStore = useAlbumStore()
@@ -101,6 +102,12 @@ function handleCloseAlbum() {
       @close="handlePanelClose"
     />
     <button v-if="(mapVisible || shelfVisible) && !selectedProvince && !showAlbumViewer" class="close-btn" @click="handleZoomOut">✕</button>
+    <AlbumViewer
+      v-if="showAlbumViewer && currentAlbumId"
+      :album="albumStore.albums.find(a => a.id === currentAlbumId)!"
+      :pages="albumStore.currentPages"
+      @close="handleCloseAlbum"
+    />
   </div>
 </template>
 
