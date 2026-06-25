@@ -20,6 +20,10 @@ function logout() {
           <el-icon><i class="el-icon-map-location" /></el-icon>
           <span>省份管理</span>
         </el-menu-item>
+        <el-menu-item index="/albums">
+          <el-icon><i class="el-icon-picture" /></el-icon>
+          <span>相册管理</span>
+        </el-menu-item>
       </el-menu>
     </el-aside>
     <el-container>
