@@ -11,6 +11,7 @@
     "@secret-space/shared": "workspace:*",
     "axios": "^1.7.0",
     "element-plus": "^2.8.0",
+    "page-flip": "^2.0.7",
     "pinia": "^2.1.0",
     "vue": "^3.5.0",
     "vue-router": "^4.4.0",

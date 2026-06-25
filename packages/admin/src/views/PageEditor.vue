@@ -1,10 +1,11 @@
 <script setup lang="ts">
-import { ref, onMounted, computed } from 'vue'
+import { ref, onMounted, computed, watch } from 'vue'
 import { useRoute } from 'vue-router'
 import axios from 'axios'
 import draggable from 'vuedraggable'
 import { ElMessage } from 'element-plus'
 import { compressImage } from '../utils/compress'
+import AlbumPreview from '../components/AlbumPreview.vue'
 
 const route = useRoute()
 const albumId = computed(() => route.params.id as string)
@@ -28,6 +29,8 @@ const pages = ref<Page[]>([])
 const selectedPage = ref<Page | null>(null)
 const addDialogVisible = ref(false)
 const newTemplateId = ref('single')
+const showPreview = ref(false)
+const albumInfo = ref<{ year: number; title: string | null; coverUrl: string | null }>({ year: 2024, title: null, coverUrl: null })
 
 const token = localStorage.getItem('admin_token')
 const headers = { Authorization: `Bearer ${token}` }
@@ -41,6 +44,12 @@ async function fetchPages() {
   if (pages.value.length && !selectedPage.value) {
     selectedPage.value = pages.value[0]
   }
+}
+
+async function fetchAlbumInfo() {
+  const res = await axios.get('/albums')
+  const album = res.data.find((a: any) => a.id === albumId.value)
+  if (album) albumInfo.value = { year: album.year, title: album.title, coverUrl: album.coverUrl }
 }
 
 async function handleDragEnd() {
@@ -117,7 +126,16 @@ function getSlotCount(templateId: string) {
   return TEMPLATES.find((t) => t.id === templateId)?.slots || 1
 }
 
-onMounted(fetchPages)
+watch(() => selectedPage.value?.templateId, (newId) => {
+  if (!selectedPage.value || !newId) return
+  const slots = getSlotCount(newId)
+  selectedPage.value.content.images = selectedPage.value.content.images.slice(0, slots)
+  while (selectedPage.value.content.images.length < slots) {
+    selectedPage.value.content.images.push('')
+  }
+})
+
+onMounted(() => { fetchPages(); fetchAlbumInfo() })
 </script>
 
 <template>
@@ -125,7 +143,10 @@ onMounted(fetchPages)
     <div class="page-editor-left">
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
         <h3 style="margin:0">页面列表</h3>
-        <el-button size="small" type="primary" @click="addDialogVisible = true">+ 添加</el-button>
+        <div>
+          <el-button size="small" @click="showPreview = true">预览</el-button>
+          <el-button size="small" type="primary" @click="addDialogVisible = true">+ 添加</el-button>
+        </div>
       </div>
       <draggable v-model="pages" item-key="id" @end="handleDragEnd">
         <template #item="{ element }">
@@ -188,6 +209,13 @@ onMounted(fetchPages)
         <el-button type="primary" @click="addPage">确定</el-button>
       </template>
     </el-dialog>
+
+    <AlbumPreview
+      v-if="showPreview"
+      :album="albumInfo"
+      :pages="pages"
+      @close="showPreview = false"
+    />
   </div>
 </template>
 

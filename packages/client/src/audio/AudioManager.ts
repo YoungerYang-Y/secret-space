@@ -40,3 +40,6 @@ export class AudioManager {
 }
 
 export const audioManager = new AudioManager()
+
+// 注册翻页音效
+audioManager.registerSfx('page-flip', '/audio/page-flip.wav')

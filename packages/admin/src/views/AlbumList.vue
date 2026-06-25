@@ -3,6 +3,7 @@ import { ref, onMounted } from 'vue'
 import axios from 'axios'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { useRouter } from 'vue-router'
+import { compressImage } from '../utils/compress'
 
 const router = useRouter()
 
@@ -66,6 +67,23 @@ async function handleDelete(album: Album) {
 }
 
 onMounted(fetchAlbums)
+
+async function handleCoverUpload(file: File) {
+  try {
+    const compressed = await compressImage(file)
+    const presignRes = await axios.post('/photos/presign', {
+      provinceCode: 'album-cover',
+      filename: `cover-${Date.now()}.webp`,
+      contentType: 'image/webp',
+    }, { headers })
+    await fetch(presignRes.data.uploadUrl, { method: 'PUT', body: compressed, headers: { 'Content-Type': 'image/webp' } })
+    form.value.coverUrl = presignRes.data.publicUrl
+    ElMessage.success('封面已上传')
+  } catch {
+    ElMessage.error('封面上传失败')
+  }
+  return false
+}
 </script>
 
 <template>
@@ -102,7 +120,16 @@ onMounted(fetchAlbums)
           <el-input v-model="form.title" placeholder="可选，如：2024年的回忆" />
         </el-form-item>
         <el-form-item label="封面">
-          <el-input v-model="form.coverUrl" placeholder="封面图 URL" />
+          <div v-if="form.coverUrl" style="margin-bottom:8px">
+            <el-image :src="form.coverUrl" style="width:80px;height:80px" fit="cover" />
+          </div>
+          <el-upload
+            :show-file-list="false"
+            :before-upload="handleCoverUpload"
+            accept="image/*"
+          >
+            <el-button size="small">{{ form.coverUrl ? '替换封面' : '上传封面' }}</el-button>
+          </el-upload>
         </el-form-item>
       </el-form>
       <template #footer>
