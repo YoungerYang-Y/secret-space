@@ -2,9 +2,9 @@
 
 **Branch:** feat/p2-album
 **Baseline SHA:** b168d0d
-**Worktree Path:** [待填充]
-**Started At:** [待填充]
-**Updated At:** [待填充]
+**Worktree Path:** /home/yangyang/workspace/codes/YoungerYang/secret-space
+**Started At:** 2026-06-25T08:12:00+08:00
+**Updated At:** 2026-06-25T08:12:00+08:00
 
 **Goal:** 实现年度相册系统：书架浏览 → 翻页阅读 → 管理后台内容编辑
 **Architecture:** Server 新增 Album/Page 模块（Prisma + NestJS），Client 用 DOM overlay 渲染书架 + StPageFlip 翻页视图，Admin 扩展相册管理页面（模板编辑+拖拽排序+图片压缩上传）
