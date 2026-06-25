@@ -4,7 +4,8 @@ export async function compressImage(
   quality = 0.85,
 ): Promise<Blob> {
   const bitmap = await createImageBitmap(file)
-  const ratio = Math.min(1, maxWidth / bitmap.width)
+  const maxDim = Math.max(bitmap.width, bitmap.height)
+  const ratio = Math.min(1, maxWidth / maxDim)
   const width = Math.round(bitmap.width * ratio)
   const height = Math.round(bitmap.height * ratio)
 

@@ -19,6 +19,7 @@ const emit = defineEmits<{ close: [] }>()
 
 const bookRef = ref<HTMLDivElement>()
 const currentPage = ref(0)
+const fallbackMode = ref(false)
 let pageFlip: PageFlip | null = null
 
 const totalPages = computed(() => props.pages.length + 2) // cover + pages + back
@@ -31,6 +32,10 @@ const templateMap: Record<string, any> = {
   'photo-text': PhotoTextTemplate,
 }
 
+function isPageVisible(index: number): boolean {
+  return Math.abs(index - currentPage.value) <= 2
+}
+
 function getPageSize() {
   const isDouble = window.innerWidth >= 768
   const maxH = window.innerHeight * 0.85
@@ -40,24 +45,36 @@ function getPageSize() {
   return { width: Math.floor(w), height: Math.floor(h) }
 }
 
+function playPageFlipSound() {
+  if (typeof window !== 'undefined' && 'audioManager' in window) {
+    ;(window as any).audioManager?.playSfx?.('page-flip')
+  }
+}
+
 function initPageFlip() {
   if (!bookRef.value) return
-  const { width, height } = getPageSize()
-  pageFlip = new PageFlip(bookRef.value, {
-    width,
-    height,
-    size: 'stretch',
-    showCover: true,
-    maxShadowOpacity: 0.3,
-    mobileScrollSupport: false,
-  })
-
-  const pageEls = bookRef.value.querySelectorAll('.page')
-  if (pageEls.length > 0) {
-    pageFlip.loadFromHTML(pageEls as unknown as HTMLElement[])
-    pageFlip.on('flip', (e: any) => {
-      currentPage.value = e.data
+  try {
+    const { width, height } = getPageSize()
+    pageFlip = new PageFlip(bookRef.value, {
+      width,
+      height,
+      size: 'stretch',
+      showCover: true,
+      maxShadowOpacity: 0.3,
+      mobileScrollSupport: false,
     })
+
+    const pageEls = bookRef.value.querySelectorAll('.page')
+    if (pageEls.length > 0) {
+      pageFlip.loadFromHTML(pageEls as unknown as HTMLElement[])
+      pageFlip.on('flip', (e: any) => {
+        currentPage.value = e.data
+        playPageFlipSound()
+      })
+    }
+  } catch (e) {
+    console.warn('PageFlip init failed, using fallback mode:', e)
+    fallbackMode.value = true
   }
 }
 
@@ -70,6 +87,7 @@ function destroyPageFlip() {
 
 let resizeTimer: ReturnType<typeof setTimeout> | null = null
 function handleResize() {
+  if (fallbackMode.value) return
   if (resizeTimer) clearTimeout(resizeTimer)
   resizeTimer = setTimeout(() => {
     destroyPageFlip()
@@ -100,14 +118,25 @@ onUnmounted(() => {
 <template>
   <div class="album-viewer" @click.self="emit('close')">
     <button class="album-close-btn" @click="emit('close')">✕</button>
-    <div ref="bookRef" class="album-book">
+
+    <!-- Fallback: 简单滚动列表 -->
+    <div v-if="fallbackMode" class="album-fallback">
+      <CoverPage :year="album.year" :title="album.title" :cover-url="album.coverUrl" />
+      <div v-for="page in pages" :key="page.id" class="fallback-page">
+        <component :is="templateMap[page.templateId]" :content="page.content" />
+      </div>
+    </div>
+
+    <!-- Normal: PageFlip -->
+    <div v-else ref="bookRef" class="album-book">
       <!-- Cover -->
       <div class="page page-cover" data-density="hard">
         <CoverPage :year="album.year" :title="album.title" :cover-url="album.coverUrl" />
       </div>
-      <!-- Content Pages -->
-      <div v-for="page in pages" :key="page.id" class="page" :class="`template-${page.templateId}`">
-        <component :is="templateMap[page.templateId]" :content="page.content" />
+      <!-- Content Pages with lazy loading -->
+      <div v-for="(page, idx) in pages" :key="page.id" class="page" :class="`template-${page.templateId}`">
+        <component v-if="isPageVisible(idx + 1)" :is="templateMap[page.templateId]" :content="page.content" />
+        <div v-else class="page-placeholder" />
       </div>
       <!-- Back Cover -->
       <div class="page page-back" data-density="hard">
@@ -165,5 +194,28 @@ onUnmounted(() => {
   transform: translateX(-50%);
   color: rgba(255, 255, 255, 0.7);
   font-size: 14px;
+}
+
+.album-fallback {
+  width: 90%;
+  max-width: 600px;
+  max-height: 85vh;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  padding: 16px;
+}
+
+.fallback-page {
+  background: #fffdf8;
+  border-radius: 4px;
+  aspect-ratio: 3/4;
+}
+
+.page-placeholder {
+  width: 100%;
+  height: 100%;
+  background: #f5f0eb;
 }
 </style>

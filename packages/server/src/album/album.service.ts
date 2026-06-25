@@ -58,9 +58,13 @@ export class AlbumService {
 
     await this.prisma.album.delete({ where: { id } })
 
-    // Best-effort R2 cleanup
+    // Best-effort R2 cleanup — failures logged, not blocking
     for (const key of keys) {
-      await this.r2.delete(key)
+      try {
+        await this.r2.delete(key)
+      } catch (e) {
+        console.error(`R2 cleanup failed for key: ${key}`, e)
+      }
     }
   }
 
@@ -94,9 +98,13 @@ export class AlbumService {
     if (dto.pageIds.length !== pages.length) {
       throw new BadRequestException('pageIds count does not match actual page count')
     }
-    for (let i = 0; i < dto.pageIds.length; i++) {
-      await this.prisma.page.update({ where: { id: dto.pageIds[i] }, data: { order: i + 1 } })
+    const pageIdSet = new Set(pages.map((p) => p.id))
+    if (!dto.pageIds.every((id) => pageIdSet.has(id))) {
+      throw new BadRequestException('pageIds contain IDs not belonging to this album')
     }
+    await this.prisma.$transaction(
+      dto.pageIds.map((id, i) => this.prisma.page.update({ where: { id }, data: { order: i + 1 } })),
+    )
   }
 
   private extractKey(url: string): string | null {
