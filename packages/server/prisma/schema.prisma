@@ -34,3 +34,24 @@ model Photo {
   order        Int      @default(0)
   createdAt    DateTime @default(now())
 }
+
+model Album {
+  id        String   @id @default(cuid())
+  year      Int      @unique
+  title     String?
+  coverUrl  String?
+  createdAt DateTime @default(now())
+  pages     Page[]
+}
+
+model Page {
+  id         String   @id @default(cuid())
+  albumId    String
+  album      Album    @relation(fields: [albumId], references: [id], onDelete: Cascade)
+  order      Int
+  templateId String
+  content    String
+  createdAt  DateTime @default(now())
+
+  @@index([albumId, order])
+}
