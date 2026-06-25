@@ -1,18 +1,24 @@
 <script setup lang="ts">
-import { ref, onMounted, onUnmounted, reactive } from 'vue'
+import { ref, onMounted, onUnmounted } from 'vue'
 import { SceneManager } from '../pixi/SceneManager'
 import { CameraController } from '../pixi/CameraController'
 import { useSceneStore } from '../stores/scene'
+import { useAlbumStore } from '../stores/album'
 import MapOverlay from '../components/MapOverlay.vue'
 import PhotoPanel from '../components/PhotoPanel.vue'
+import BookshelfOverlay from '../components/BookshelfOverlay.vue'
 
 const sceneStore = useSceneStore()
+const albumStore = useAlbumStore()
 const canvasRef = ref<HTMLCanvasElement>()
 const sm = new SceneManager()
 let camera: CameraController | null = null
 
 const mapVisible = ref(false)
+const shelfVisible = ref(false)
 const selectedProvince = ref<string | null>(null)
+const showAlbumViewer = ref(false)
+const currentAlbumId = ref<string | null>(null)
 
 onMounted(async () => {
   if (canvasRef.value) {
@@ -37,10 +43,17 @@ function handleZoomInWall() {
   mapVisible.value = true
 }
 
+function handleZoomInShelf() {
+  if (!camera) return
+  camera.zoomIn('shelf')
+  shelfVisible.value = true
+}
+
 function handleZoomOut() {
   if (!camera) return
   camera.zoomOut()
   mapVisible.value = false
+  shelfVisible.value = false
   selectedProvince.value = null
 }
 
@@ -51,6 +64,19 @@ function handleProvinceClick(code: string) {
 function handlePanelClose() {
   selectedProvince.value = null
 }
+
+async function handleOpenAlbum(albumId: string) {
+  currentAlbumId.value = albumId
+  await albumStore.fetchPages(albumId)
+  shelfVisible.value = false
+  showAlbumViewer.value = true
+}
+
+function handleCloseAlbum() {
+  showAlbumViewer.value = false
+  shelfVisible.value = true
+  currentAlbumId.value = null
+}
 </script>
 
 <template>
@@ -60,9 +86,13 @@ function handlePanelClose() {
       <p>需要支持 WebGL 的现代浏览器才能查看果果的小屋 🏠</p>
     </div>
     <MapOverlay :visible="mapVisible" @province-click="handleProvinceClick" />
-    <div v-if="!mapVisible && sceneStore.isReady" class="map-entry" @click="handleZoomInWall">
+    <BookshelfOverlay :visible="shelfVisible" @open-album="handleOpenAlbum" />
+    <div v-if="!mapVisible && !shelfVisible && sceneStore.isReady" class="map-entry" @click="handleZoomInWall">
       <img src="../assets/china-map.svg" alt="地图" class="map-entry-icon" />
       <span class="map-entry-label">足迹地图</span>
+    </div>
+    <div v-if="!mapVisible && !shelfVisible && sceneStore.isReady" class="shelf-entry" @click="handleZoomInShelf">
+      <span class="shelf-entry-label">📚 相册</span>
     </div>
     <PhotoPanel
       v-if="selectedProvince"
@@ -70,7 +100,7 @@ function handlePanelClose() {
       :origin-rect="null"
       @close="handlePanelClose"
     />
-    <button v-if="mapVisible && !selectedProvince" class="close-btn" @click="handleZoomOut">✕</button>
+    <button v-if="(mapVisible || shelfVisible) && !selectedProvince && !showAlbumViewer" class="close-btn" @click="handleZoomOut">✕</button>
   </div>
 </template>
 
@@ -141,5 +171,23 @@ canvas {
   cursor: pointer;
   line-height: 36px;
   text-align: center;
+}
+.shelf-entry {
+  position: absolute;
+  top: 55%;
+  right: 12%;
+  z-index: 5;
+  cursor: pointer;
+  padding: 8px 16px;
+  background: rgba(255,255,255,0.7);
+  border-radius: 8px;
+  transition: transform 0.2s;
+}
+.shelf-entry:hover {
+  transform: scale(1.05);
+}
+.shelf-entry-label {
+  font-size: 14px;
+  color: #333;
 }
 </style>
