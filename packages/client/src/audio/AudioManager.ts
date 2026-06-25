@@ -38,3 +38,5 @@ export class AudioManager {
     this.sfxMap.forEach(h => h.stop())
   }
 }
+
+export const audioManager = new AudioManager()

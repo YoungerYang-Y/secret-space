@@ -1,5 +1,6 @@
 <script setup lang="ts">
-import { onMounted, ref } from 'vue'
+import { onMounted } from 'vue'
+import gsap from 'gsap'
 import { useAlbumStore } from '../stores/album'
 
 defineProps<{
@@ -11,7 +12,6 @@ const emit = defineEmits<{
 }>()
 
 const albumStore = useAlbumStore()
-const spineRefs = ref<HTMLElement[]>([])
 
 onMounted(async () => {
   if (albumStore.albums.length === 0) {
@@ -20,21 +20,11 @@ onMounted(async () => {
 })
 
 function onSpineEnter(el: HTMLElement) {
-  if (typeof window !== 'undefined' && 'gsap' in window) {
-    ;(window as any).gsap.to(el, { y: -15, boxShadow: '0 -4px 12px rgba(0,0,0,0.3)', duration: 0.3, ease: 'power2.out' })
-  } else {
-    el.style.transform = 'translateY(-15px)'
-    el.style.boxShadow = '0 -4px 12px rgba(0,0,0,0.3)'
-  }
+  gsap.to(el, { y: -15, boxShadow: '0 -4px 12px rgba(0,0,0,0.3)', duration: 0.3, ease: 'power2.out' })
 }
 
 function onSpineLeave(el: HTMLElement) {
-  if (typeof window !== 'undefined' && 'gsap' in window) {
-    ;(window as any).gsap.to(el, { y: 0, boxShadow: 'none', duration: 0.3, ease: 'power2.out' })
-  } else {
-    el.style.transform = ''
-    el.style.boxShadow = ''
-  }
+  gsap.to(el, { y: 0, boxShadow: 'none', duration: 0.3, ease: 'power2.out' })
 }
 </script>
 
@@ -83,18 +73,25 @@ function onSpineLeave(el: HTMLElement) {
   align-items: flex-end;
   gap: 4px;
   height: 60%;
+  overflow-x: auto;
+  padding: 0 16px;
 }
 
 .spine {
   width: 45px;
+  min-width: 45px;
   height: 100%;
   border-radius: 3px 3px 0 0;
   cursor: pointer;
   display: flex;
   align-items: center;
   justify-content: center;
-  transition: transform 0.3s, box-shadow 0.3s;
   box-shadow: inset -2px 0 4px rgba(0, 0, 0, 0.15);
+}
+
+.spine:active {
+  transform: translateY(-8px);
+  opacity: 0.85;
 }
 
 .spine-year {

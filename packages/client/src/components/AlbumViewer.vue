@@ -2,6 +2,7 @@
 import { ref, onMounted, onUnmounted, computed, nextTick } from 'vue'
 import { PageFlip } from 'page-flip'
 import type { AlbumDto, PageDto } from '../stores/album'
+import { audioManager } from '../audio/AudioManager'
 import SingleTemplate from './templates/SingleTemplate.vue'
 import DoubleHTemplate from './templates/DoubleHTemplate.vue'
 import DoubleVTemplate from './templates/DoubleVTemplate.vue'
@@ -46,9 +47,7 @@ function getPageSize() {
 }
 
 function playPageFlipSound() {
-  if (typeof window !== 'undefined' && 'audioManager' in window) {
-    ;(window as any).audioManager?.playSfx?.('page-flip')
-  }
+  audioManager.playSfx('page-flip')
 }
 
 function initPageFlip() {
