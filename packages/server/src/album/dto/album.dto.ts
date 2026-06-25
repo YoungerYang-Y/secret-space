@@ -1,4 +1,4 @@
-import { IsInt, IsOptional, IsString, IsIn, IsArray, ValidateNested, IsObject } from 'class-validator'
+import { IsInt, IsOptional, IsString, IsIn, IsArray, IsUrl, ValidateNested, ArrayMaxSize } from 'class-validator'
 import { Type } from 'class-transformer'
 
 export class CreateAlbumDto {
@@ -10,7 +10,7 @@ export class CreateAlbumDto {
   title?: string
 
   @IsOptional()
-  @IsString()
+  @IsUrl({ require_tld: false })
   coverUrl?: string
 }
 
@@ -24,18 +24,30 @@ export class UpdateAlbumDto {
   title?: string
 
   @IsOptional()
-  @IsString()
+  @IsUrl({ require_tld: false })
   coverUrl?: string
 }
 
-const VALID_TEMPLATES = ['single', 'double-h', 'double-v', 'triple', 'photo-text'] as const
+export const VALID_TEMPLATES = ['single', 'double-h', 'double-v', 'triple', 'photo-text'] as const
+
+export class PageContentDto {
+  @IsArray()
+  @IsString({ each: true })
+  @ArrayMaxSize(10)
+  images: string[]
+
+  @IsOptional()
+  @IsString()
+  text?: string
+}
 
 export class CreatePageDto {
   @IsIn(VALID_TEMPLATES)
   templateId: string
 
-  @IsObject()
-  content: { images: string[]; text?: string }
+  @ValidateNested()
+  @Type(() => PageContentDto)
+  content: PageContentDto
 
   @IsInt()
   order: number
@@ -47,8 +59,9 @@ export class UpdatePageDto {
   templateId?: string
 
   @IsOptional()
-  @IsObject()
-  content?: { images: string[]; text?: string }
+  @ValidateNested()
+  @Type(() => PageContentDto)
+  content?: PageContentDto
 }
 
 export class ReorderPagesDto {

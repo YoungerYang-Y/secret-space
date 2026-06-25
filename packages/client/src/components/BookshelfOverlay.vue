@@ -38,9 +38,11 @@ function onSpineLeave(el: HTMLElement) {
         v-for="album in albumStore.albums"
         :key="album.id"
         class="spine"
+        role="button"
+        :aria-label="`打开 ${album.year} 年相册`"
         :style="{ backgroundColor: albumStore.getSpineColor(album.year) }"
-        @mouseenter="onSpineEnter($event.currentTarget as HTMLElement)"
-        @mouseleave="onSpineLeave($event.currentTarget as HTMLElement)"
+        @pointerenter="onSpineEnter($event.currentTarget as HTMLElement)"
+        @pointerleave="onSpineLeave($event.currentTarget as HTMLElement)"
         @click="emit('open-album', album.id)"
       >
         <span class="spine-year">{{ album.year }}</span>

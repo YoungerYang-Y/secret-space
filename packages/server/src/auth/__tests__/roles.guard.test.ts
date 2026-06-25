@@ -48,8 +48,8 @@ describe('RolesGuard', () => {
     expect(res.status).toBe(403)
   })
 
-  it('未认证请求拒绝', async () => {
+  it('未认证请求返回 401', async () => {
     const res = await request(app.getHttpServer()).get('/test-guard/admin-only')
-    expect(res.status).toBe(403)
+    expect(res.status).toBe(401)
   })
 })

@@ -34,12 +34,14 @@ const templateMap: Record<string, any> = {
 }
 
 function isPageVisible(index: number): boolean {
-  return Math.abs(index - currentPage.value) <= 2
+  // 双页模式下一次翻转跨 2 页，用 ±3 保证快速翻页无空白
+  return Math.abs(index - currentPage.value) <= 3
 }
 
 function getPageSize() {
   const isDouble = window.innerWidth >= 768
   const maxH = window.innerHeight * 0.85
+  // 双页模式下每页占视口宽度 45%（预留翻页阴影间距）
   const maxW = isDouble ? window.innerWidth * 0.45 : window.innerWidth * 0.85
   const h = Math.min(maxH, maxW * (4 / 3))
   const w = h * (3 / 4)
@@ -89,8 +91,12 @@ function handleResize() {
   if (fallbackMode.value) return
   if (resizeTimer) clearTimeout(resizeTimer)
   resizeTimer = setTimeout(() => {
+    const savedPage = currentPage.value
     destroyPageFlip()
-    nextTick(() => initPageFlip())
+    nextTick(() => {
+      initPageFlip()
+      if (pageFlip && savedPage > 0) pageFlip.turnToPage(savedPage)
+    })
   }, 300)
 }
 

@@ -4,8 +4,10 @@ import axios from 'axios'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { useRouter } from 'vue-router'
 import { compressImage } from '../utils/compress'
+import { useAdminAuthStore } from '../stores/auth'
 
 const router = useRouter()
+const authStore = useAdminAuthStore()
 
 interface Album {
   id: string
@@ -20,8 +22,9 @@ const dialogVisible = ref(false)
 const editingAlbum = ref<Album | null>(null)
 const form = ref({ year: new Date().getFullYear(), title: '', coverUrl: '' })
 
-const token = localStorage.getItem('admin_token')
-const headers = { Authorization: `Bearer ${token}` }
+function getHeaders() {
+  return { Authorization: `Bearer ${authStore.token}` }
+}
 
 async function fetchAlbums() {
   const res = await axios.get('/albums')
@@ -43,9 +46,9 @@ function openEdit(album: Album) {
 async function handleSubmit() {
   try {
     if (editingAlbum.value) {
-      await axios.put(`/albums/${editingAlbum.value.id}`, form.value, { headers })
+      await axios.put(`/albums/${editingAlbum.value.id}`, form.value, { headers: getHeaders() })
     } else {
-      await axios.post('/albums', form.value, { headers })
+      await axios.post('/albums', form.value, { headers: getHeaders() })
     }
     dialogVisible.value = false
     await fetchAlbums()
@@ -56,9 +59,13 @@ async function handleSubmit() {
 }
 
 async function handleDelete(album: Album) {
-  await ElMessageBox.confirm(`确定删除 ${album.year} 年的相册吗？`, '确认')
   try {
-    await axios.delete(`/albums/${album.id}`, { headers })
+    await ElMessageBox.confirm(`确定删除 ${album.year} 年的相册吗？`, '确认')
+  } catch {
+    return
+  }
+  try {
+    await axios.delete(`/albums/${album.id}`, { headers: getHeaders() })
     await fetchAlbums()
     ElMessage.success('删除成功')
   } catch (e: any) {
@@ -71,11 +78,12 @@ onMounted(fetchAlbums)
 async function handleCoverUpload(file: File) {
   try {
     const compressed = await compressImage(file)
+    // 复用 photos/presign 接口，provinceCode 作为 R2 key 前缀分类
     const presignRes = await axios.post('/photos/presign', {
       provinceCode: 'album-cover',
       filename: `cover-${Date.now()}.webp`,
       contentType: 'image/webp',
-    }, { headers })
+    }, { headers: getHeaders() })
     await fetch(presignRes.data.uploadUrl, { method: 'PUT', body: compressed, headers: { 'Content-Type': 'image/webp' } })
     form.value.coverUrl = presignRes.data.publicUrl
     ElMessage.success('封面已上传')

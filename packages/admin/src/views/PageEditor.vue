@@ -5,9 +5,11 @@ import axios from 'axios'
 import draggable from 'vuedraggable'
 import { ElMessage } from 'element-plus'
 import { compressImage } from '../utils/compress'
+import { useAdminAuthStore } from '../stores/auth'
 import AlbumPreview from '../components/AlbumPreview.vue'
 
 const route = useRoute()
+const authStore = useAdminAuthStore()
 const albumId = computed(() => route.params.id as string)
 
 interface Page {
@@ -32,8 +34,9 @@ const newTemplateId = ref('single')
 const showPreview = ref(false)
 const albumInfo = ref<{ year: number; title: string | null; coverUrl: string | null }>({ year: 2024, title: null, coverUrl: null })
 
-const token = localStorage.getItem('admin_token')
-const headers = { Authorization: `Bearer ${token}` }
+function getHeaders() {
+  return { Authorization: `Bearer ${authStore.token}` }
+}
 
 async function fetchPages() {
   const res = await axios.get(`/albums/${albumId.value}/pages`)
@@ -55,7 +58,7 @@ async function fetchAlbumInfo() {
 async function handleDragEnd() {
   const pageIds = pages.value.map((p) => p.id)
   try {
-    await axios.put(`/albums/${albumId.value}/pages/reorder`, { pageIds }, { headers })
+    await axios.put(`/albums/${albumId.value}/pages/reorder`, { pageIds }, { headers: getHeaders() })
   } catch {
     ElMessage.error('排序保存失败')
   }
@@ -69,7 +72,7 @@ async function addPage() {
       templateId: newTemplateId.value,
       content,
       order: pages.value.length + 1,
-    }, { headers })
+    }, { headers: getHeaders() })
     addDialogVisible.value = false
     await fetchPages()
     selectedPage.value = pages.value[pages.value.length - 1]
@@ -85,7 +88,7 @@ async function savePage() {
     await axios.put(`/pages/${selectedPage.value.id}`, {
       templateId: selectedPage.value.templateId,
       content: selectedPage.value.content,
-    }, { headers })
+    }, { headers: getHeaders() })
     ElMessage.success('保存成功')
   } catch {
     ElMessage.error('保存失败')
@@ -94,7 +97,7 @@ async function savePage() {
 
 async function deletePage(page: Page) {
   try {
-    await axios.delete(`/pages/${page.id}`, { headers })
+    await axios.delete(`/pages/${page.id}`, { headers: getHeaders() })
     if (selectedPage.value?.id === page.id) selectedPage.value = null
     await fetchPages()
     ElMessage.success('已删除')
@@ -112,7 +115,7 @@ async function uploadImage(file: File, index: number) {
       provinceCode: 'album',
       filename: `page-${Date.now()}${ext}`,
       contentType: 'image/webp',
-    }, { headers })
+    }, { headers: getHeaders() })
     const { uploadUrl, key } = presignRes.data
     await fetch(uploadUrl, { method: 'PUT', body: compressed, headers: { 'Content-Type': 'image/webp' } })
     selectedPage.value.content.images[index] = presignRes.data.publicUrl
@@ -126,13 +129,15 @@ function getSlotCount(templateId: string) {
   return TEMPLATES.find((t) => t.id === templateId)?.slots || 1
 }
 
-watch(() => selectedPage.value?.templateId, (newId) => {
-  if (!selectedPage.value || !newId) return
+watch(() => selectedPage.value?.templateId, (newId, oldId) => {
+  if (!selectedPage.value || !newId || !oldId) return
   const slots = getSlotCount(newId)
   selectedPage.value.content.images = selectedPage.value.content.images.slice(0, slots)
   while (selectedPage.value.content.images.length < slots) {
     selectedPage.value.content.images.push('')
   }
+  // 仅在有实际图片内容时自动保存，避免空数组写入
+  if (selectedPage.value.content.images.some(Boolean)) savePage()
 })
 
 onMounted(() => { fetchPages(); fetchAlbumInfo() })

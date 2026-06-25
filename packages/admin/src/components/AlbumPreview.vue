@@ -66,6 +66,7 @@ onUnmounted(() => { pageFlip?.destroy() })
   </div>
 </template>
 
+<!-- 模板布局 CSS 与 client/src/components/templates/ 同步维护，新增模板时需双改 -->
 <style scoped>
 .preview-overlay {
   position: fixed;

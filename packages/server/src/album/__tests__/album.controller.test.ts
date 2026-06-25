@@ -75,11 +75,11 @@ describe('Album API', () => {
     expect(res.status).toBe(403)
   })
 
-  it('POST /albums returns 403 without token', async () => {
+  it('POST /albums returns 401 without token', async () => {
     const res = await request(app.getHttpServer())
       .post('/albums')
       .send({ year: 2025 })
-    expect(res.status).toBe(403)
+    expect(res.status).toBe(401)
   })
 
   it('PUT /albums/:id updates title', async () => {
@@ -235,6 +235,19 @@ describe('Album API', () => {
       .put(`/albums/${album.id}/pages/reorder`)
       .set('Authorization', `Bearer ${adminToken}`)
       .send({ pageIds: ['only-one'] })
+    expect(res.status).toBe(400)
+  })
+
+  it('PUT /albums/:id/pages/reorder returns 400 for cross-album pageIds', async () => {
+    const album1 = await prisma.album.create({ data: { year: 2024 } })
+    const album2 = await prisma.album.create({ data: { year: 2025 } })
+    const p1 = await prisma.page.create({ data: { albumId: album1.id, order: 1, templateId: 'single', content: '{"images":[]}' } })
+    const p2 = await prisma.page.create({ data: { albumId: album2.id, order: 1, templateId: 'single', content: '{"images":[]}' } })
+
+    const res = await request(app.getHttpServer())
+      .put(`/albums/${album1.id}/pages/reorder`)
+      .set('Authorization', `Bearer ${adminToken}`)
+      .send({ pageIds: [p2.id] })
     expect(res.status).toBe(400)
   })
 })

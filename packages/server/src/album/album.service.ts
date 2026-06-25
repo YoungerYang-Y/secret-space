@@ -29,7 +29,7 @@ export class AlbumService {
   async update(id: string, dto: UpdateAlbumDto) {
     const album = await this.prisma.album.findUnique({ where: { id } })
     if (!album) throw new NotFoundException('Album not found')
-    if (dto.year && dto.year !== album.year) {
+    if (dto.year !== undefined && dto.year !== album.year) {
       const conflict = await this.prisma.album.findUnique({ where: { year: dto.year } })
       if (conflict) throw new ConflictException(`Album for year ${dto.year} already exists`)
     }
@@ -58,14 +58,15 @@ export class AlbumService {
 
     await this.prisma.album.delete({ where: { id } })
 
-    // Best-effort R2 cleanup — failures logged, not blocking
-    for (const key of keys) {
+    // Best-effort R2 cleanup — log keys for traceability, failures don't block
+    if (keys.length) console.log(`R2 cleanup: deleting ${keys.length} keys for album ${id}`, keys)
+    await Promise.allSettled(keys.map(async (key) => {
       try {
         await this.r2.delete(key)
       } catch (e) {
         console.error(`R2 cleanup failed for key: ${key}`, e)
       }
-    }
+    }))
   }
 
   async createPage(albumId: string, dto: CreatePageDto) {
@@ -76,10 +77,12 @@ export class AlbumService {
     })
   }
 
+  // 单管理员场景：admin 有全局管理权限，page 操作无需归属校验。
+  // 若未来引入多管理员，需在此处校验 page.album 的所有权。
   async updatePage(pageId: string, dto: UpdatePageDto) {
     const page = await this.prisma.page.findUnique({ where: { id: pageId } })
     if (!page) throw new NotFoundException('Page not found')
-    const data: any = {}
+    const data: Partial<{ templateId: string; content: string }> = {}
     if (dto.templateId) data.templateId = dto.templateId
     if (dto.content) data.content = JSON.stringify(dto.content)
     return this.prisma.page.update({ where: { id: pageId }, data })
