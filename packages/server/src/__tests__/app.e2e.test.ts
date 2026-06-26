@@ -1,20 +1,18 @@
-import { Test } from '@nestjs/testing'
 import { INestApplication } from '@nestjs/common'
 import request from 'supertest'
-import { AppModule } from '../app.module'
+import { createTestApp } from './test-utils'
 
 describe('App (e2e)', () => {
   let app: INestApplication
 
   beforeAll(async () => {
-    const module = await Test.createTestingModule({ imports: [AppModule] }).compile()
-    app = module.createNestApplication()
-    await app.init()
+    const result = await createTestApp()
+    app = result.app
   })
 
   afterAll(() => app.close())
 
   it('GET /health returns 200', () => {
-    return request(app.getHttpServer()).get('/health').expect(200)
+    return request(app.getHttpServer()).get('/api/health').expect(200)
   })
 })

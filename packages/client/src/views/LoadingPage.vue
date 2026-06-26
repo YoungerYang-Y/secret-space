@@ -9,7 +9,7 @@ const progress = ref(0)
 onMounted(async () => {
   // Fetch a random tip
   try {
-    const res = await fetch('/tips/random')
+    const res = await fetch('/api/tips/random')
     if (res.ok) {
       const data = await res.json()
       tip.value = data.text

@@ -26,6 +26,7 @@ describe('RolesGuard', () => {
       controllers: [TestController],
     }).compile()
     app = module.createNestApplication()
+    app.setGlobalPrefix('api')
     await app.init()
   })
 
@@ -34,7 +35,7 @@ describe('RolesGuard', () => {
   it('admin role 放行', async () => {
     const token = jwt.sign({ role: 'admin' }, JWT_SECRET, { expiresIn: '1h' })
     const res = await request(app.getHttpServer())
-      .get('/test-guard/admin-only')
+      .get('/api/test-guard/admin-only')
       .set('Authorization', `Bearer ${token}`)
     expect(res.status).toBe(200)
     expect(res.body).toEqual({ ok: true })
@@ -43,13 +44,13 @@ describe('RolesGuard', () => {
   it('owner role 拒绝管理 API', async () => {
     const token = jwt.sign({ role: 'owner' }, JWT_SECRET, { expiresIn: '1h' })
     const res = await request(app.getHttpServer())
-      .get('/test-guard/admin-only')
+      .get('/api/test-guard/admin-only')
       .set('Authorization', `Bearer ${token}`)
     expect(res.status).toBe(403)
   })
 
   it('未认证请求返回 401', async () => {
-    const res = await request(app.getHttpServer()).get('/test-guard/admin-only')
+    const res = await request(app.getHttpServer()).get('/api/test-guard/admin-only')
     expect(res.status).toBe(401)
   })
 })

@@ -17,7 +17,7 @@ export const useMapStore = defineStore('map', () => {
   async function fetchProvinces() {
     loading.value = true
     try {
-      const res = await fetch('/provinces')
+      const res = await fetch('/api/provinces')
       if (!res.ok) throw new Error('获取省份列表失败')
       provinces.value = await res.json()
     } finally {

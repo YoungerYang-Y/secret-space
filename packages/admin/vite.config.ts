@@ -7,9 +7,7 @@ export default defineConfig({
   server: {
     port: 5174,
     proxy: {
-      '/auth': 'http://localhost:3000',
-      '/provinces': 'http://localhost:3000',
-      '/photos': 'http://localhost:3000',
+      '/api': 'http://localhost:3000',
     },
   },
   test: {

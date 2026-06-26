@@ -28,7 +28,7 @@ watch(
     loading.value = true
     empty.value = false
     try {
-      const res = await fetch(`/provinces/${code}/photos`)
+      const res = await fetch(`/api/provinces/${code}/photos`)
       if (!res.ok) {
         empty.value = true
         return
