@@ -110,10 +110,8 @@ async function uploadImage(file: File, index: number) {
   if (!selectedPage.value) return
   try {
     const compressed = await compressImage(file)
-    const ext = '.webp'
-    const presignRes = await axios.post('/photos/presign', {
-      provinceCode: 'album',
-      filename: `page-${Date.now()}${ext}`,
+    const presignRes = await axios.post('/albums/presign', {
+      filename: `page-${Date.now()}.webp`,
       contentType: 'image/webp',
     }, { headers: getHeaders() })
     const { uploadUrl, key } = presignRes.data

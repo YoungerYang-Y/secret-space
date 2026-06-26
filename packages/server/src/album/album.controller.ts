@@ -3,14 +3,28 @@ import { AlbumService } from './album.service'
 import { CreateAlbumDto, UpdateAlbumDto, CreatePageDto, UpdatePageDto, ReorderPagesDto } from './dto/album.dto'
 import { RolesGuard } from '../auth/roles.guard'
 import { Roles } from '../auth/roles.decorator'
+import { R2Service } from '../r2/r2.service'
+import { extname } from 'path'
 
 @Controller()
 export class AlbumController {
-  constructor(private albumService: AlbumService) {}
+  constructor(
+    private albumService: AlbumService,
+    private r2: R2Service,
+  ) {}
 
   @Get('albums')
   findAll() {
     return this.albumService.findAll()
+  }
+
+  @Post('albums/presign')
+  @UseGuards(RolesGuard)
+  @Roles('admin')
+  @HttpCode(200)
+  async presign(@Body() body: { filename: string; contentType: string }) {
+    const ext = extname(body.filename) || '.webp'
+    return this.r2.presign('album', ext, body.contentType)
   }
 
   @Get('albums/:id/pages')

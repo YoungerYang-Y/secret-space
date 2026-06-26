@@ -78,9 +78,8 @@ onMounted(fetchAlbums)
 async function handleCoverUpload(file: File) {
   try {
     const compressed = await compressImage(file)
-    // 复用 photos/presign 接口，provinceCode 作为 R2 key 前缀分类
-    const presignRes = await axios.post('/photos/presign', {
-      provinceCode: 'album-cover',
+    // 使用 album 专用 presign 端点
+    const presignRes = await axios.post('/albums/presign', {
       filename: `cover-${Date.now()}.webp`,
       contentType: 'image/webp',
     }, { headers: getHeaders() })
