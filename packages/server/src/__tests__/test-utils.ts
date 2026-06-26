@@ -5,7 +5,7 @@ import { AppModule } from '../app.module'
 export async function createTestApp(options?: { validation?: boolean }) {
   const module = await Test.createTestingModule({ imports: [AppModule] }).compile()
   const app = module.createNestApplication()
-  app.setGlobalPrefix('api')
+  app.setGlobalPrefix('api', { exclude: ['health'] })
   if (options?.validation !== false) {
     app.useGlobalPipes(new ValidationPipe({ whitelist: true, transform: true }))
   }

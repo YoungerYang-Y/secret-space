@@ -26,7 +26,7 @@ describe('RolesGuard', () => {
       controllers: [TestController],
     }).compile()
     app = module.createNestApplication()
-    app.setGlobalPrefix('api')
+    app.setGlobalPrefix('api', { exclude: ['health'] })
     await app.init()
   })
 

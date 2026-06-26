@@ -12,7 +12,7 @@ describe('App (e2e)', () => {
 
   afterAll(() => app.close())
 
-  it('GET /health returns 200', () => {
-    return request(app.getHttpServer()).get('/api/health').expect(200)
+  it('GET /health returns 200 (excluded from /api prefix)', () => {
+    return request(app.getHttpServer()).get('/health').expect(200)
   })
 })
