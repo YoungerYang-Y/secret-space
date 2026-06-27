@@ -36,9 +36,9 @@ export class PhotoService {
     if (photoIds.some((id) => !existingIds.has(id))) {
       throw new BadRequestException('包含无效的照片ID')
     }
-    for (let i = 0; i < photoIds.length; i++) {
-      await this.prisma.photo.update({ where: { id: photoIds[i] }, data: { order: i } })
-    }
+    await this.prisma.$transaction(
+      photoIds.map((id, i) => this.prisma.photo.update({ where: { id }, data: { order: i } })),
+    )
     return this.prisma.photo.findMany({
       where: { provinceCode },
       orderBy: { order: 'asc' },
@@ -56,9 +56,9 @@ export class PhotoService {
   async delete(id: number) {
     const photo = await this.prisma.photo.findUnique({ where: { id } })
     if (!photo) throw new NotFoundException('照片不存在')
-    await this.prisma.photo.delete({ where: { id } })
     if (photo.key) {
       await this.r2.delete(photo.key)
     }
+    await this.prisma.photo.delete({ where: { id } })
   }
 }

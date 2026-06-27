@@ -32,6 +32,6 @@ export class AuthService {
   }
 
   private signToken(role: string): string {
-    return jwt.sign({ role }, JWT_SECRET, { expiresIn: '7d' })
+    return jwt.sign({ role, iat: Math.floor(Date.now() / 1000) }, JWT_SECRET, { expiresIn: '7d' })
   }
 }

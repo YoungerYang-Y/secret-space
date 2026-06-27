@@ -17,7 +17,7 @@ describe('Province API', () => {
   afterAll(() => app.close())
 
   it('GET /provinces 返回 34 个省份', async () => {
-    const res = await request(app.getHttpServer()).get('/api/provinces')
+    const res = await request(app.getHttpServer()).get('/api/provinces').set('Authorization', `Bearer ${visitorToken}`)
     expect(res.status).toBe(200)
     expect(res.body).toHaveLength(34)
     expect(res.body[0]).toHaveProperty('code')
@@ -26,13 +26,13 @@ describe('Province API', () => {
   })
 
   it('GET /provinces/:code/photos 返回照片列表', async () => {
-    const res = await request(app.getHttpServer()).get('/api/provinces/hunan/photos')
+    const res = await request(app.getHttpServer()).get('/api/provinces/hunan/photos').set('Authorization', `Bearer ${visitorToken}`)
     expect(res.status).toBe(200)
     expect(Array.isArray(res.body)).toBe(true)
   })
 
   it('GET /provinces/invalid/photos 返回 404', async () => {
-    const res = await request(app.getHttpServer()).get('/api/provinces/invalid/photos')
+    const res = await request(app.getHttpServer()).get('/api/provinces/invalid/photos').set('Authorization', `Bearer ${visitorToken}`)
     expect(res.status).toBe(404)
   })
 

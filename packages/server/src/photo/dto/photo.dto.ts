@@ -1,4 +1,4 @@
-import { IsString, IsNotEmpty, IsInt, IsOptional, IsArray, IsUrl } from 'class-validator'
+import { IsString, IsNotEmpty, IsInt, IsOptional, IsArray, IsUrl, Matches } from 'class-validator'
 
 export class PresignDto {
   @IsString()
@@ -7,6 +7,7 @@ export class PresignDto {
 
   @IsString()
   @IsNotEmpty()
+  @Matches(/^[a-zA-Z0-9_\-\.]+$/, { message: '文件名包含非法字符' })
   filename: string
 
   @IsString()
@@ -19,7 +20,7 @@ export class CreatePhotoDto {
   @IsNotEmpty()
   provinceCode: string
 
-  @IsString()
+  @IsUrl({ require_tld: false })
   @IsNotEmpty()
   url: string
 

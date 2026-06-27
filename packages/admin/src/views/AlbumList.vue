@@ -21,6 +21,7 @@ const albums = ref<Album[]>([])
 const dialogVisible = ref(false)
 const editingAlbum = ref<Album | null>(null)
 const form = ref({ year: new Date().getFullYear(), title: '', coverUrl: '' })
+const submitting = ref(false)
 
 function getHeaders() {
   return { Authorization: `Bearer ${authStore.token}` }
@@ -44,6 +45,8 @@ function openEdit(album: Album) {
 }
 
 async function handleSubmit() {
+  if (submitting.value) return
+  submitting.value = true
   try {
     if (editingAlbum.value) {
       await axios.put(`/albums/${editingAlbum.value.id}`, form.value, { headers: getHeaders() })
@@ -55,6 +58,8 @@ async function handleSubmit() {
     ElMessage.success('保存成功')
   } catch (e: any) {
     ElMessage.error(e.response?.data?.message || '保存失败')
+  } finally {
+    submitting.value = false
   }
 }
 
@@ -141,7 +146,7 @@ async function handleCoverUpload(file: File) {
       </el-form>
       <template #footer>
         <el-button @click="dialogVisible = false">取消</el-button>
-        <el-button type="primary" @click="handleSubmit">保存</el-button>
+        <el-button type="primary" :loading="submitting" @click="handleSubmit">保存</el-button>
       </template>
     </el-dialog>
   </div>

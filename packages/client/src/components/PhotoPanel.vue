@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { ref, watch } from 'vue'
+import { apiFetch } from '../utils/apiFetch'
 
 interface PhotoDto {
   id: number
@@ -28,7 +29,7 @@ watch(
     loading.value = true
     empty.value = false
     try {
-      const res = await fetch(`/api/provinces/${code}/photos`)
+      const res = await apiFetch(`/api/provinces/${code}/photos`)
       if (!res.ok) {
         empty.value = true
         return

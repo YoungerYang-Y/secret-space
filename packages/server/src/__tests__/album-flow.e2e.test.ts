@@ -84,15 +84,15 @@ describe('Album Lifecycle (E2E)', () => {
       .send({ templateId: 'nonexistent', content: { images: [] }, order: 4 })
     expect(badTplRes.status).toBe(400)
 
-    // Step 7: 公开查询相册列表（无需 token）
-    const listRes = await request(app.getHttpServer()).get('/api/albums')
+    // Step 7: 查询相册列表（需鉴权）
+    const listRes = await request(app.getHttpServer()).get('/api/albums').set(headers)
     expect(listRes.status).toBe(200)
     const album = listRes.body.find((a: any) => a.id === albumId)
     expect(album).toBeDefined()
     expect(album.year).toBe(2025)
 
-    // Step 8: 公开查询页面列表，验证按 order 排序
-    const pagesRes = await request(app.getHttpServer()).get(`/api/albums/${albumId}/pages`)
+    // Step 8: 查询页面列表，验证按 order 排序
+    const pagesRes = await request(app.getHttpServer()).get(`/api/albums/${albumId}/pages`).set(headers)
     expect(pagesRes.status).toBe(200)
     expect(pagesRes.body).toHaveLength(3)
     expect(pagesRes.body[0].order).toBe(1)
@@ -106,7 +106,7 @@ describe('Album Lifecycle (E2E)', () => {
     expect(reorderRes.status).toBe(200)
 
     // Step 10: 验证新顺序
-    const reorderedRes = await request(app.getHttpServer()).get(`/api/albums/${albumId}/pages`)
+    const reorderedRes = await request(app.getHttpServer()).get(`/api/albums/${albumId}/pages`).set(headers)
     expect(reorderedRes.body[0].id).toBe(page3Id)
     expect(reorderedRes.body[1].id).toBe(page1Id)
     expect(reorderedRes.body[2].id).toBe(page2Id)
@@ -134,7 +134,7 @@ describe('Album Lifecycle (E2E)', () => {
     expect(deletePageRes.status).toBe(204)
 
     // Step 14: 验证页面减少
-    const afterDeleteRes = await request(app.getHttpServer()).get(`/api/albums/${albumId}/pages`)
+    const afterDeleteRes = await request(app.getHttpServer()).get(`/api/albums/${albumId}/pages`).set(headers)
     expect(afterDeleteRes.body).toHaveLength(2)
     expect(afterDeleteRes.body.find((p: any) => p.id === page2Id)).toBeUndefined()
 
@@ -145,10 +145,10 @@ describe('Album Lifecycle (E2E)', () => {
     expect(deleteAlbumRes.status).toBe(204)
 
     // Step 16: 验证相册和页面都已消失
-    const finalListRes = await request(app.getHttpServer()).get('/api/albums')
+    const finalListRes = await request(app.getHttpServer()).get('/api/albums').set(headers)
     expect(finalListRes.body.find((a: any) => a.id === albumId)).toBeUndefined()
 
-    const finalPagesRes = await request(app.getHttpServer()).get(`/api/albums/${albumId}/pages`)
+    const finalPagesRes = await request(app.getHttpServer()).get(`/api/albums/${albumId}/pages`).set(headers)
     expect(finalPagesRes.status).toBe(404)
   })
 

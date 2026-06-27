@@ -1,15 +1,17 @@
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
+import { ref, onMounted, onUnmounted } from 'vue'
 import { useSceneStore } from '../stores/scene'
+import { apiFetch } from '../utils/apiFetch'
 
 const sceneStore = useSceneStore()
 const tip = ref('正在打开果果的房间...')
 const progress = ref(0)
+let timer: ReturnType<typeof setInterval> | null = null
 
 onMounted(async () => {
   // Fetch a random tip
   try {
-    const res = await fetch('/api/tips/random')
+    const res = await apiFetch('/api/tips/random')
     if (res.ok) {
       const data = await res.json()
       tip.value = data.text
@@ -17,14 +19,18 @@ onMounted(async () => {
   } catch {}
 
   // Simulate loading progress (real asset loading would drive this)
-  const interval = setInterval(() => {
+  timer = setInterval(() => {
     progress.value += Math.random() * 15
     if (progress.value >= 100) {
       progress.value = 100
-      clearInterval(interval)
+      clearInterval(timer!)
       setTimeout(() => { sceneStore.currentView = 'scene' }, 500)
     }
   }, 200)
+})
+
+onUnmounted(() => {
+  if (timer) clearInterval(timer)
 })
 </script>
 

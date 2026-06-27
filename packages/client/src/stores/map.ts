@@ -1,5 +1,6 @@
 import { ref, computed } from 'vue'
 import { defineStore } from 'pinia'
+import { apiFetch } from '../utils/apiFetch'
 
 export interface ProvinceDto {
   code: string
@@ -17,7 +18,7 @@ export const useMapStore = defineStore('map', () => {
   async function fetchProvinces() {
     loading.value = true
     try {
-      const res = await fetch('/api/provinces')
+      const res = await apiFetch('/api/provinces')
       if (!res.ok) throw new Error('获取省份列表失败')
       provinces.value = await res.json()
     } finally {

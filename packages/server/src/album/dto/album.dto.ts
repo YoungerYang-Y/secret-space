@@ -1,4 +1,4 @@
-import { IsInt, IsOptional, IsString, IsIn, IsArray, IsUrl, ValidateNested, ArrayMaxSize } from 'class-validator'
+import { IsInt, IsOptional, IsString, IsIn, IsArray, IsUrl, ValidateNested, ArrayMaxSize, IsNotEmpty, Matches } from 'class-validator'
 import { Type } from 'class-transformer'
 
 export class CreateAlbumDto {
@@ -68,4 +68,15 @@ export class ReorderPagesDto {
   @IsArray()
   @IsString({ each: true })
   pageIds: string[]
+}
+
+export class AlbumPresignDto {
+  @IsString()
+  @IsNotEmpty()
+  @Matches(/^[a-zA-Z0-9_\-\.]+$/, { message: '文件名包含非法字符' })
+  filename: string
+
+  @IsString()
+  @IsNotEmpty()
+  contentType: string
 }

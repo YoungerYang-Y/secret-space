@@ -1,5 +1,6 @@
 import { ref } from 'vue'
 import { defineStore } from 'pinia'
+import { apiFetch } from '../utils/apiFetch'
 
 export interface AlbumDto {
   id: string
@@ -35,7 +36,7 @@ export const useAlbumStore = defineStore('album', () => {
   async function fetchAlbums() {
     loading.value = true
     try {
-      const res = await fetch('/api/albums')
+      const res = await apiFetch('/api/albums')
       if (!res.ok) throw new Error('获取相册列表失败')
       albums.value = await res.json()
     } finally {
@@ -44,7 +45,7 @@ export const useAlbumStore = defineStore('album', () => {
   }
 
   async function fetchPages(albumId: string) {
-    const res = await fetch(`/api/albums/${albumId}/pages`)
+    const res = await apiFetch(`/api/albums/${albumId}/pages`)
     if (!res.ok) throw new Error('获取页面列表失败')
     const raw = await res.json()
     currentPages.value = raw.map((p: any) => ({

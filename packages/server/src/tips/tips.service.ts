@@ -10,6 +10,6 @@ export class TipsService {
     if (count === 0) return { text: '欢迎来到果果的秘密空间！' }
     const skip = Math.floor(Math.random() * count)
     const tip = await this.prisma.tip.findFirst({ skip })
-    return { text: tip!.text }
+    return { text: tip?.text ?? '欢迎来到果果的秘密空间！' }
   }
 }

@@ -28,7 +28,7 @@ describe('Album API', () => {
   // --- Albums CRUD ---
 
   it('GET /albums returns empty array initially', async () => {
-    const res = await request(app.getHttpServer()).get('/api/albums')
+    const res = await request(app.getHttpServer()).get('/api/albums').set('Authorization', `Bearer ${adminToken}`)
     expect(res.status).toBe(200)
     expect(res.body).toEqual([])
   })
@@ -37,7 +37,7 @@ describe('Album API', () => {
     await prisma.album.create({ data: { year: 2025 } })
     await prisma.album.create({ data: { year: 2023 } })
     await prisma.album.create({ data: { year: 2024 } })
-    const res = await request(app.getHttpServer()).get('/api/albums')
+    const res = await request(app.getHttpServer()).get('/api/albums').set('Authorization', `Bearer ${adminToken}`)
     expect(res.status).toBe(200)
     expect(res.body).toHaveLength(3)
     expect(res.body[0].year).toBe(2023)
@@ -133,7 +133,7 @@ describe('Album API', () => {
     const album = await prisma.album.create({ data: { year: 2024 } })
     await prisma.page.create({ data: { albumId: album.id, order: 2, templateId: 'single', content: '{"images":["a.jpg"]}' } })
     await prisma.page.create({ data: { albumId: album.id, order: 1, templateId: 'double-h', content: '{"images":["b.jpg","c.jpg"]}' } })
-    const res = await request(app.getHttpServer()).get(`/api/albums/${album.id}/pages`)
+    const res = await request(app.getHttpServer()).get(`/api/albums/${album.id}/pages`).set('Authorization', `Bearer ${adminToken}`)
     expect(res.status).toBe(200)
     expect(res.body).toHaveLength(2)
     expect(res.body[0].order).toBe(1)
@@ -141,7 +141,7 @@ describe('Album API', () => {
   })
 
   it('GET /albums/nonexistent/pages returns 404', async () => {
-    const res = await request(app.getHttpServer()).get('/api/albums/nonexistent/pages')
+    const res = await request(app.getHttpServer()).get('/api/albums/nonexistent/pages').set('Authorization', `Bearer ${adminToken}`)
     expect(res.status).toBe(404)
   })
 
@@ -217,7 +217,7 @@ describe('Album API', () => {
       .send({ pageIds: [p3.id, p1.id, p2.id] })
     expect(res.status).toBe(200)
 
-    const pages = await request(app.getHttpServer()).get(`/api/albums/${album.id}/pages`)
+    const pages = await request(app.getHttpServer()).get(`/api/albums/${album.id}/pages`).set('Authorization', `Bearer ${adminToken}`)
     expect(pages.body[0].id).toBe(p3.id)
     expect(pages.body[1].id).toBe(p1.id)
     expect(pages.body[2].id).toBe(p2.id)
