@@ -26,7 +26,6 @@ const fallbackMode = ref(false)
 const showHint = ref(true)
 let hintTimer: ReturnType<typeof setTimeout> | null = null
 let pageFlip: PageFlip | null = null
-let resizeTimer: ReturnType<typeof setTimeout> | null = null
 
 const totalPages = computed(() => props.pages.length + 2) // cover + pages + back
 
@@ -47,7 +46,8 @@ function isPageVisible(index: number): boolean {
 
 function getPageSize() {
   const isDouble = window.innerWidth >= 768
-  const maxH = window.innerHeight * 0.85
+  // 留出上下各 48px 边距（底部控制栏 + 顶部关闭按钮）
+  const maxH = window.innerHeight - 96
   const maxW = isDouble ? window.innerWidth * 0.45 : window.innerWidth * 0.85
   const h = Math.min(maxH, maxW * (4 / 3))
   const w = h * (3 / 4)
@@ -72,6 +72,10 @@ function initPageFlip() {
       width,
       height,
       size: 'stretch',
+      minWidth: Math.floor(width * 0.3),
+      maxWidth: width,
+      minHeight: Math.floor(height * 0.3),
+      maxHeight: height,
       showCover: true,
       drawShadow: true,
       maxShadowOpacity: 0.8,
@@ -101,39 +105,26 @@ function destroyPageFlip() {
   }
 }
 
-function handleResize() {
-  if (fallbackMode.value) return
-  if (resizeTimer) clearTimeout(resizeTimer)
-  resizeTimer = setTimeout(() => {
-    const savedPage = currentPage.value
-    destroyPageFlip()
-    nextTick(() => {
-      initPageFlip()
-      if (pageFlip && savedPage > 0) pageFlip.turnToPage(savedPage)
-    })
-  }, 300)
-}
+function flipPrev() { pageFlip?.flipPrev() }
+function flipNext() { pageFlip?.flipNext() }
 
 function handleKeydown(e: KeyboardEvent) {
   if (e.key === 'Escape') emit('close')
-  if (e.key === 'ArrowRight') pageFlip?.flipNext()
-  if (e.key === 'ArrowLeft') pageFlip?.flipPrev()
+  if (e.key === 'ArrowRight') flipNext()
+  if (e.key === 'ArrowLeft') flipPrev()
 }
 
 onMounted(() => {
   applyToElement(rootRef.value!)
   if (props.album.coverUrl) extractFromImage(props.album.coverUrl)
   nextTick(() => initPageFlip())
-  window.addEventListener('resize', handleResize)
   document.addEventListener('keydown', handleKeydown)
   hintTimer = setTimeout(() => { showHint.value = false }, 4000)
 })
 
 onUnmounted(() => {
   destroyPageFlip()
-  if (resizeTimer) clearTimeout(resizeTimer)
   if (hintTimer) clearTimeout(hintTimer)
-  window.removeEventListener('resize', handleResize)
   document.removeEventListener('keydown', handleKeydown)
 })
 </script>
@@ -151,20 +142,40 @@ onUnmounted(() => {
     </div>
 
     <!-- Normal: PageFlip -->
-    <div v-else ref="bookRef" class="album-book">
-      <!-- Cover -->
-      <div class="page page-cover">
-        <CoverPage :year="album.year" :title="album.title" :cover-url="album.coverUrl" />
+    <div v-else class="album-viewer-body">
+      <button
+        class="album-nav-btn album-nav-prev"
+        :disabled="currentPage === 0"
+        @click="flipPrev"
+        aria-label="上一页"
+      >
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><polyline points="15,18 9,12 15,6"/></svg>
+      </button>
+
+      <div ref="bookRef" class="album-book">
+        <!-- Cover -->
+        <div class="page page-cover">
+          <CoverPage :year="album.year" :title="album.title" :cover-url="album.coverUrl" />
+        </div>
+        <!-- Content Pages with lazy loading -->
+        <div v-for="(page, idx) in pages" :key="page.id" class="page" :class="`template-${page.templateId}`">
+          <component v-if="isPageVisible(idx + 1)" :is="templateMap[page.templateId]" :content="page.content" />
+          <div v-else class="page-placeholder" />
+        </div>
+        <!-- Back Cover -->
+        <div class="page page-back">
+          <BackCoverPage />
+        </div>
       </div>
-      <!-- Content Pages with lazy loading -->
-      <div v-for="(page, idx) in pages" :key="page.id" class="page" :class="`template-${page.templateId}`">
-        <component v-if="isPageVisible(idx + 1)" :is="templateMap[page.templateId]" :content="page.content" />
-        <div v-else class="page-placeholder" />
-      </div>
-      <!-- Back Cover -->
-      <div class="page page-back">
-        <BackCoverPage />
-      </div>
+
+      <button
+        class="album-nav-btn album-nav-next"
+        :disabled="currentPage >= totalPages - 1"
+        @click="flipNext"
+        aria-label="下一页"
+      >
+        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><polyline points="9,6 15,12 9,18"/></svg>
+      </button>
     </div>
 
     <Transition name="fade">
@@ -221,8 +232,46 @@ onUnmounted(() => {
   outline-offset: 2px;
 }
 
+.album-viewer-body {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  width: 100%;
+  box-sizing: border-box;
+}
+
 .album-book {
   filter: drop-shadow(0 4px 16px rgba(0, 0, 0, 0.15));
+}
+
+/* ===== 翻页按钮 ===== */
+.album-nav-btn {
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  border: none;
+  background: rgba(255, 255, 255, 0.15);
+  color: #fff;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 0.15s ease-out, transform 0.15s ease-out, opacity 0.15s ease-out;
+  flex-shrink: 0;
+}
+.album-nav-btn:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.3);
+  transform: scale(1.1);
+}
+.album-nav-btn:active:not(:disabled) { transform: scale(0.95); }
+.album-nav-btn:disabled {
+  opacity: 0.2;
+  cursor: default;
+}
+.album-nav-btn:focus-visible {
+  outline: 2px solid #fff;
+  outline-offset: 2px;
 }
 
 .page {

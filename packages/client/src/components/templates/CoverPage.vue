@@ -4,7 +4,7 @@ defineProps<{ year: number; title: string | null; coverUrl: string | null }>()
 
 <template>
   <div class="cover-page">
-    <img v-if="coverUrl" :src="coverUrl" alt="封面" class="cover-img" width="300" height="400" />
+    <img v-if="coverUrl" :src="coverUrl" alt="封面" class="cover-img" />
     <div class="cover-info">
       <h1 class="cover-year">{{ year }}</h1>
       <p v-if="title" class="cover-title">{{ title }}</p>

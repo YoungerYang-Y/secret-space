@@ -13,20 +13,24 @@ const emit = defineEmits<{ close: [] }>()
 const rootRef = ref<HTMLDivElement>()
 const bookRef = ref<HTMLDivElement>()
 let pageFlip: PageFlip | null = null
-let resizeTimer: ReturnType<typeof setTimeout> | null = null
 const showHint = ref(true)
 let hintTimer: ReturnType<typeof setTimeout> | null = null
 
 const totalPages = computed(() => props.pages.length + 2)
 const currentPage = ref(0)
 
-// 预计算过滤后的图片数组，避免模板中每帧调用 .filter(Boolean)
+// 预计算过滤后的图片数组
 const safePages = computed(() =>
   props.pages.map(p => ({
     ...p,
     safeImages: p.content.images.filter(Boolean),
   }))
 )
+
+// 懒加载：仅渲染当前页 ±3 范围内的内容
+function isPageVisible(index: number): boolean {
+  return Math.abs(index - currentPage.value) <= 3
+}
 
 // 主题色
 const { extractFromImage, applyToElement } = useThemeColor()
@@ -38,16 +42,13 @@ function prefersReducedMotion(): boolean {
 }
 
 function getPageSize() {
-  const container = bookRef.value?.parentElement
-  if (!container) return { width: 300, height: 400 }
-  const containerRect = container.getBoundingClientRect()
-  const footerH = 48 + 16
-  const availableH = containerRect.height - footerH - 48
-  const availableW = containerRect.width - 120
-  const pageRatio = 3 / 4
-  const bookH = Math.min(availableH, availableW / pageRatio)
-  const bookW = Math.floor(bookH * pageRatio)
-  return { width: bookW, height: Math.floor(bookH) }
+  const isDouble = window.innerWidth >= 768
+  // 留出上下各 48px 边距（底部控制栏 + 顶部关闭按钮）
+  const maxH = window.innerHeight - 96
+  const maxW = isDouble ? window.innerWidth * 0.45 : window.innerWidth * 0.85
+  const h = Math.min(maxH, maxW * (4 / 3))
+  const w = h * (3 / 4)
+  return { width: Math.floor(w), height: Math.floor(h) }
 }
 
 function initPageFlip() {
@@ -57,6 +58,10 @@ function initPageFlip() {
     width,
     height,
     size: 'stretch',
+    minWidth: Math.floor(width * 0.3),
+    maxWidth: width,
+    minHeight: Math.floor(height * 0.3),
+    maxHeight: height,
     showCover: true,
     drawShadow: true,
     maxShadowOpacity: 0.8,
@@ -81,18 +86,6 @@ function destroyPageFlip() {
   }
 }
 
-function handleResize() {
-  if (resizeTimer) clearTimeout(resizeTimer)
-  resizeTimer = setTimeout(() => {
-    const saved = currentPage.value
-    destroyPageFlip()
-    nextTick(() => {
-      initPageFlip()
-      if (pageFlip && saved > 0) pageFlip.turnToPage(saved)
-    })
-  }, 300)
-}
-
 function flipPrev() { pageFlip?.flipPrev() }
 function flipNext() { pageFlip?.flipNext() }
 
@@ -106,17 +99,14 @@ onMounted(() => {
   applyToElement(rootRef.value!)
   if (props.album.coverUrl) extractFromImage(props.album.coverUrl)
   nextTick(initPageFlip)
-  window.addEventListener('resize', handleResize)
-  window.addEventListener('keydown', handleKeydown)
+  document.addEventListener('keydown', handleKeydown)
   hintTimer = setTimeout(() => { showHint.value = false }, 3500)
 })
 
 onUnmounted(() => {
   destroyPageFlip()
-  if (resizeTimer) clearTimeout(resizeTimer)
   if (hintTimer) clearTimeout(hintTimer)
-  window.removeEventListener('resize', handleResize)
-  window.removeEventListener('keydown', handleKeydown)
+  document.removeEventListener('keydown', handleKeydown)
 })
 </script>
 
@@ -146,12 +136,13 @@ onUnmounted(() => {
           </div>
         </div>
 
-        <!-- 内容页 -->
-        <div v-for="page in safePages" :key="page.id" class="page">
-          <div :class="`tpl tpl-${page.templateId}`">
+        <!-- 内容页（懒加载） -->
+        <div v-for="(page, idx) in safePages" :key="page.id" class="page">
+          <div v-if="isPageVisible(idx + 1)" :class="`tpl tpl-${page.templateId}`">
             <img v-for="(img, i) in page.safeImages" :key="i" :src="img" loading="lazy" alt="" />
             <p v-if="page.content.text" class="caption">{{ page.content.text }}</p>
           </div>
+          <div v-else class="page-placeholder" />
         </div>
 
         <!-- 封底 -->
@@ -170,13 +161,13 @@ onUnmounted(() => {
       >
         <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><polyline points="9,6 15,12 9,18"/></svg>
       </button>
-
-      <Transition name="fade">
-        <div v-if="showHint && currentPage === 0" class="flip-hint" aria-hidden="true">
-          点击翻页或左右滑动
-        </div>
-      </Transition>
     </div>
+
+    <Transition name="fade">
+      <div v-if="showHint && currentPage === 0" class="flip-hint" aria-hidden="true">
+        点击翻页或左右滑动
+      </div>
+    </Transition>
 
     <div class="preview-controls">
       <span class="page-indicator">{{ currentPage + 1 }} / {{ totalPages }}</span>
@@ -200,6 +191,8 @@ onUnmounted(() => {
   align-items: center;
   justify-content: center;
   flex-direction: column;
+  padding: 32px 24px;
+  box-sizing: border-box;
 }
 
 /* ===== 关闭按钮 ===== */
@@ -231,11 +224,8 @@ onUnmounted(() => {
   align-items: center;
   justify-content: center;
   gap: 12px;
-  flex: 1;
   width: 100%;
-  padding: 32px 24px;
   box-sizing: border-box;
-  position: relative;
 }
 
 .preview-book {
@@ -271,10 +261,155 @@ onUnmounted(() => {
   outline-offset: 2px;
 }
 
-/* ===== 翻页提示 ===== */
+/* ===== 页面通用 ===== */
+.page {
+  background: #fffdf8;
+  overflow: hidden;
+}
+.page-cover,
+.page-back {
+  background: none;
+}
+.page-placeholder {
+  width: 100%;
+  height: 100%;
+  background: #f5f0eb;
+}
+
+/* ===== 封面（与 client CoverPage 一致） ===== */
+.cover-page {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  background: linear-gradient(135deg, var(--theme-from, #fef9f4), var(--theme-to, #fde8d0));
+  padding: 24px;
+  box-sizing: border-box;
+  transition: background 0.6s;
+}
+.cover-img {
+  max-width: 70%;
+  max-height: 60%;
+  object-fit: cover;
+  border-radius: 8px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.15);
+}
+.cover-info {
+  margin-top: 16px;
+  text-align: center;
+}
+.cover-year {
+  font-size: 32px;
+  font-weight: 700;
+  color: var(--theme-text, #8b5e3c);
+  margin: 0;
+}
+.cover-title {
+  font-size: 16px;
+  color: var(--theme-sub, #a07050);
+  margin: 8px 0 0;
+}
+
+/* ===== 封底（与 client BackCoverPage 一致） ===== */
+.back-cover {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: linear-gradient(135deg, var(--theme-from, #fef9f4), var(--theme-to, #fde8d0));
+  transition: background 0.6s;
+}
+.back-cover-text {
+  font-size: 18px;
+  color: var(--theme-sub, #a07050);
+}
+
+/* ===== 模板布局（与 client templates 一致） ===== */
+.tpl {
+  width: 100%;
+  height: 100%;
+  padding: 16px;
+  box-sizing: border-box;
+}
+.tpl img {
+  border-radius: 4px;
+}
+
+.tpl-single {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.tpl-single img {
+  max-width: 100%;
+  max-height: 100%;
+  object-fit: contain;
+}
+
+.tpl-double-h {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  align-items: center;
+}
+.tpl-double-h img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.tpl-double-v {
+  display: grid;
+  grid-template-rows: 1fr 1fr;
+  gap: 8px;
+}
+.tpl-double-v img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.tpl-triple {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  grid-template-rows: 1fr 1fr;
+  gap: 8px;
+}
+.tpl-triple img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.tpl-triple img:first-child {
+  grid-row: 1 / -1;
+}
+
+.tpl-photo-text {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.tpl-photo-text img {
+  flex: 1;
+  width: 100%;
+  object-fit: contain;
+  min-height: 0;
+}
+.caption {
+  text-align: center;
+  font-size: 14px;
+  color: #555;
+  margin: 0;
+  line-height: 1.5;
+}
+
+/* ===== 翻页提示（fixed 定位，与 client 一致） ===== */
 .flip-hint {
-  position: absolute;
-  bottom: 12px;
+  position: fixed;
+  bottom: 60px;
   left: 50%;
   translate: -50% 0;
   background: rgba(0, 0, 0, 0.5);
@@ -283,6 +418,8 @@ onUnmounted(() => {
   border-radius: 16px;
   font-size: 13px;
   pointer-events: none;
+  white-space: nowrap;
+  z-index: 155;
   animation: hint-bounce 1.5s ease-in-out infinite;
 }
 @keyframes hint-bounce {
@@ -290,14 +427,16 @@ onUnmounted(() => {
   50% { translate: -50% -4px; }
 }
 
-/* ===== 底部控制栏 ===== */
+/* ===== 底部控制栏（fixed 定位，与 client 一致） ===== */
 .preview-controls {
-  padding: 12px 24px;
+  position: fixed;
+  bottom: 20px;
+  left: 50%;
+  transform: translateX(-50%);
   display: flex;
-  justify-content: center;
   align-items: center;
   gap: 24px;
-  flex-shrink: 0;
+  z-index: 155;
 }
 .page-indicator {
   color: rgba(255, 255, 255, 0.8);
