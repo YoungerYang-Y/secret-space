@@ -4,7 +4,7 @@ defineProps<{ year: number; title: string | null; coverUrl: string | null }>()
 
 <template>
   <div class="cover-page">
-    <img v-if="coverUrl" :src="coverUrl" alt="封面" class="cover-img" />
+    <img v-if="coverUrl" :src="coverUrl" alt="封面" class="cover-img" width="300" height="400" />
     <div class="cover-info">
       <h1 class="cover-year">{{ year }}</h1>
       <p v-if="title" class="cover-title">{{ title }}</p>
@@ -20,16 +20,17 @@ defineProps<{ year: number; title: string | null; coverUrl: string | null }>()
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  background: linear-gradient(135deg, #fef9f4, #fde8d0);
+  background: linear-gradient(135deg, var(--theme-from, #fef9f4), var(--theme-to, #fde8d0));
   padding: 24px;
   box-sizing: border-box;
+  transition: background 0.6s;
 }
 .cover-img {
   max-width: 70%;
   max-height: 60%;
   object-fit: cover;
   border-radius: 8px;
-  box-shadow: 0 4px 16px rgba(0,0,0,0.15);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.15);
 }
 .cover-info {
   margin-top: 16px;
@@ -38,12 +39,18 @@ defineProps<{ year: number; title: string | null; coverUrl: string | null }>()
 .cover-year {
   font-size: 32px;
   font-weight: 700;
-  color: #8b5e3c;
+  color: var(--theme-text, #8b5e3c);
   margin: 0;
 }
 .cover-title {
   font-size: 16px;
-  color: #a07050;
+  color: var(--theme-sub, #a07050);
   margin: 8px 0 0;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .cover-page {
+    transition: none;
+  }
 }
 </style>

@@ -11,10 +11,17 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  background: linear-gradient(135deg, #fde8d0, #fef9f4);
+  background: linear-gradient(135deg, var(--theme-from, #fef9f4), var(--theme-to, #fde8d0));
+  transition: background 0.6s;
 }
 .back-cover-text {
   font-size: 18px;
-  color: #a07050;
+  color: var(--theme-sub, #a07050);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .back-cover {
+    transition: none;
+  }
 }
 </style>

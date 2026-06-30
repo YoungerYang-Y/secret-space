@@ -7,8 +7,12 @@
     "build": "tsc",
     "test": "vitest run"
   },
+  "peerDependencies": {
+    "vue": "^3.4.0"
+  },
   "devDependencies": {
     "typescript": "^5.5.0",
-    "vitest": "^2.0.0"
+    "vitest": "^2.0.0",
+    "vue": "^3.5.0"
   }
 }

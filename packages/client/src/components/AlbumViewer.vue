@@ -1,6 +1,7 @@
 <script setup lang="ts">
-import { ref, onMounted, onUnmounted, computed, nextTick } from 'vue'
+import { ref, onMounted, onUnmounted, computed, nextTick, type Component } from 'vue'
 import { PageFlip } from 'page-flip'
+import { useThemeColor } from '@secret-space/shared'
 import type { AlbumDto, PageDto } from '../stores/album'
 import { audioManager } from '../audio/AudioManager'
 import SingleTemplate from './templates/SingleTemplate.vue'
@@ -18,14 +19,18 @@ const props = defineProps<{
 
 const emit = defineEmits<{ close: [] }>()
 
+const rootRef = ref<HTMLDivElement>()
 const bookRef = ref<HTMLDivElement>()
 const currentPage = ref(0)
 const fallbackMode = ref(false)
+const showHint = ref(true)
+let hintTimer: ReturnType<typeof setTimeout> | null = null
 let pageFlip: PageFlip | null = null
+let resizeTimer: ReturnType<typeof setTimeout> | null = null
 
 const totalPages = computed(() => props.pages.length + 2) // cover + pages + back
 
-const templateMap: Record<string, any> = {
+const templateMap: Record<string, Component> = {
   single: SingleTemplate,
   'double-h': DoubleHTemplate,
   'double-v': DoubleVTemplate,
@@ -33,15 +38,16 @@ const templateMap: Record<string, any> = {
   'photo-text': PhotoTextTemplate,
 }
 
+// 主题色
+const { extractFromImage, applyToElement } = useThemeColor()
+
 function isPageVisible(index: number): boolean {
-  // 双页模式下一次翻转跨 2 页，用 ±3 保证快速翻页无空白
   return Math.abs(index - currentPage.value) <= 3
 }
 
 function getPageSize() {
   const isDouble = window.innerWidth >= 768
   const maxH = window.innerHeight * 0.85
-  // 双页模式下每页占视口宽度 45%（预留翻页阴影间距）
   const maxW = isDouble ? window.innerWidth * 0.45 : window.innerWidth * 0.85
   const h = Math.min(maxH, maxW * (4 / 3))
   const w = h * (3 / 4)
@@ -50,6 +56,12 @@ function getPageSize() {
 
 function playPageFlipSound() {
   audioManager.playSfx('page-flip')
+}
+
+function prefersReducedMotion(): boolean {
+  try {
+    return window.matchMedia?.('(prefers-reduced-motion: reduce)').matches ?? false
+  } catch { return false }
 }
 
 function initPageFlip() {
@@ -63,6 +75,7 @@ function initPageFlip() {
       showCover: true,
       maxShadowOpacity: 0.3,
       mobileScrollSupport: false,
+      flippingTime: prefersReducedMotion() ? 1 : undefined,
     })
 
     const pageEls = bookRef.value.querySelectorAll('.page')
@@ -86,7 +99,6 @@ function destroyPageFlip() {
   }
 }
 
-let resizeTimer: ReturnType<typeof setTimeout> | null = null
 function handleResize() {
   if (fallbackMode.value) return
   if (resizeTimer) clearTimeout(resizeTimer)
@@ -107,22 +119,26 @@ function handleKeydown(e: KeyboardEvent) {
 }
 
 onMounted(() => {
+  applyToElement(rootRef.value!)
+  if (props.album.coverUrl) extractFromImage(props.album.coverUrl)
   nextTick(() => initPageFlip())
   window.addEventListener('resize', handleResize)
   document.addEventListener('keydown', handleKeydown)
+  hintTimer = setTimeout(() => { showHint.value = false }, 4000)
 })
 
 onUnmounted(() => {
   destroyPageFlip()
   if (resizeTimer) clearTimeout(resizeTimer)
+  if (hintTimer) clearTimeout(hintTimer)
   window.removeEventListener('resize', handleResize)
   document.removeEventListener('keydown', handleKeydown)
 })
 </script>
 
 <template>
-  <div class="album-viewer" @click.self="emit('close')">
-    <button class="album-close-btn" @click="emit('close')">✕</button>
+  <div ref="rootRef" class="album-viewer" @click.self="emit('close')">
+    <button class="album-close-btn" @click="emit('close')" title="关闭 (Esc)" aria-label="关闭相册">✕</button>
 
     <!-- Fallback: 简单滚动列表 -->
     <div v-if="fallbackMode" class="album-fallback">
@@ -148,39 +164,63 @@ onUnmounted(() => {
         <BackCoverPage />
       </div>
     </div>
-    <div class="page-indicator">{{ currentPage + 1 }} / {{ totalPages }}</div>
+
+    <Transition name="fade">
+      <div v-if="showHint && currentPage === 0 && !fallbackMode" class="flip-hint" aria-hidden="true">
+        点击翻页或左右滑动
+      </div>
+    </Transition>
+
+    <div class="album-controls">
+      <span class="page-indicator">{{ currentPage + 1 }} / {{ totalPages }}</span>
+      <span v-if="!fallbackMode" class="controls-keys"><kbd>←</kbd><kbd>→</kbd> 翻页 · <kbd>Esc</kbd> 关闭</span>
+    </div>
   </div>
 </template>
 
 <style scoped>
 .album-viewer {
+  --theme-from: #fef9f4;
+  --theme-to: #fde8d0;
+  --theme-text: #8b5e3c;
+  --theme-sub: #a07050;
+
   position: fixed;
   inset: 0;
-  z-index: 100;
+  z-index: 150;
   background: rgba(0, 0, 0, 0.85);
   display: flex;
+  flex-direction: column;
   align-items: center;
   justify-content: center;
+  padding: 32px 24px;
+  box-sizing: border-box;
 }
 
 .album-close-btn {
-  position: absolute;
+  position: fixed;
   top: 16px;
   right: 16px;
-  z-index: 101;
+  z-index: 160;
   background: rgba(255, 255, 255, 0.9);
   border: none;
   border-radius: 50%;
-  width: 40px;
-  height: 40px;
+  width: 44px;
+  height: 44px;
   font-size: 20px;
   cursor: pointer;
-  line-height: 40px;
+  line-height: 44px;
   text-align: center;
+  transition: transform 0.15s ease-out;
+}
+.album-close-btn:hover { transform: scale(1.12); }
+.album-close-btn:focus-visible {
+  outline: 2px solid #fff;
+  outline-offset: 2px;
 }
 
 .album-book {
-  /* page-flip handles sizing */
+  filter: drop-shadow(0 4px 16px rgba(0, 0, 0, 0.15));
 }
 
 .page {
@@ -188,19 +228,66 @@ onUnmounted(() => {
   overflow: hidden;
 }
 
-.page-cover, .page-back {
+.page-cover,
+.page-back {
   background: none;
 }
 
-.page-indicator {
-  position: absolute;
+.page-placeholder {
+  width: 100%;
+  height: 100%;
+  background: #f5f0eb;
+}
+
+/* ===== 翻页提示 ===== */
+.flip-hint {
+  position: fixed;
+  bottom: 60px;
+  left: 50%;
+  translate: -50% 0;
+  background: rgba(0, 0, 0, 0.5);
+  color: #fff;
+  padding: 6px 14px;
+  border-radius: 16px;
+  font-size: 13px;
+  pointer-events: none;
+  white-space: nowrap;
+  z-index: 155;
+  animation: hint-bounce 1.5s ease-in-out infinite;
+}
+@keyframes hint-bounce {
+  0%, 100% { translate: -50% 0; }
+  50% { translate: -50% -4px; }
+}
+
+/* ===== 底部控制栏 ===== */
+.album-controls {
+  position: fixed;
   bottom: 20px;
   left: 50%;
   transform: translateX(-50%);
-  color: rgba(255, 255, 255, 0.7);
+  display: flex;
+  align-items: center;
+  gap: 24px;
+  z-index: 155;
+}
+.page-indicator {
+  color: rgba(255, 255, 255, 0.8);
   font-size: 14px;
 }
+.controls-keys {
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.6);
+}
+.controls-keys kbd {
+  padding: 1px 5px;
+  border: 1px solid rgba(255, 255, 255, 0.4);
+  border-radius: 3px;
+  font-size: 11px;
+  font-family: inherit;
+}
 
+/* ===== Fallback 模式 ===== */
 .album-fallback {
   width: 90%;
   max-width: 600px;
@@ -218,9 +305,14 @@ onUnmounted(() => {
   aspect-ratio: 3/4;
 }
 
-.page-placeholder {
-  width: 100%;
-  height: 100%;
-  background: #f5f0eb;
+/* ===== 过渡 ===== */
+.fade-enter-active,
+.fade-leave-active { transition: opacity 0.25s ease-out; }
+.fade-enter-from,
+.fade-leave-to { opacity: 0; }
+
+/* ===== 可访问性：减少动画偏好 ===== */
+@media (prefers-reduced-motion: reduce) {
+  .flip-hint { animation: none; }
 }
 </style>
