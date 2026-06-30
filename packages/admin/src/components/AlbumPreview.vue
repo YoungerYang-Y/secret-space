@@ -58,9 +58,11 @@ function initPageFlip() {
     height,
     size: 'stretch',
     showCover: true,
-    maxShadowOpacity: 0.3,
+    drawShadow: true,
+    maxShadowOpacity: 0.8,
+    showPageCorners: true,
     mobileScrollSupport: false,
-    flippingTime: prefersReducedMotion() ? 1 : 800,
+    flippingTime: prefersReducedMotion() ? 1 : 1000,
   })
   const els = bookRef.value.querySelectorAll('.page')
   if (els.length) {
@@ -134,7 +136,7 @@ onUnmounted(() => {
 
       <div ref="bookRef" class="preview-book">
         <!-- 封面 -->
-        <div class="page page-cover" data-density="hard">
+        <div class="page page-cover">
           <div class="cover-page">
             <img v-if="album.coverUrl" :src="album.coverUrl" alt="封面" class="cover-img" />
             <div class="cover-info">
@@ -153,7 +155,7 @@ onUnmounted(() => {
         </div>
 
         <!-- 封底 -->
-        <div class="page page-back" data-density="hard">
+        <div class="page page-back">
           <div class="back-cover">
             <span class="back-cover-text">— 完 —</span>
           </div>

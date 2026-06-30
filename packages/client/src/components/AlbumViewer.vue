@@ -73,9 +73,11 @@ function initPageFlip() {
       height,
       size: 'stretch',
       showCover: true,
-      maxShadowOpacity: 0.3,
+      drawShadow: true,
+      maxShadowOpacity: 0.8,
+      showPageCorners: true,
       mobileScrollSupport: false,
-      flippingTime: prefersReducedMotion() ? 1 : undefined,
+      flippingTime: prefersReducedMotion() ? 1 : 1000,
     })
 
     const pageEls = bookRef.value.querySelectorAll('.page')
@@ -151,7 +153,7 @@ onUnmounted(() => {
     <!-- Normal: PageFlip -->
     <div v-else ref="bookRef" class="album-book">
       <!-- Cover -->
-      <div class="page page-cover" data-density="hard">
+      <div class="page page-cover">
         <CoverPage :year="album.year" :title="album.title" :cover-url="album.coverUrl" />
       </div>
       <!-- Content Pages with lazy loading -->
@@ -160,7 +162,7 @@ onUnmounted(() => {
         <div v-else class="page-placeholder" />
       </div>
       <!-- Back Cover -->
-      <div class="page page-back" data-density="hard">
+      <div class="page page-back">
         <BackCoverPage />
       </div>
     </div>
