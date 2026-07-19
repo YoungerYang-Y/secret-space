@@ -54,6 +54,31 @@
 - **验证**：结构检查确认 6 个任务均具备 Depends on、Execution、Task Completion Gate、Red/Green/Verify/Commit；最终独立复审无 P0/P1。
 - **状态变化**：`in-progress` 保持不变；计划已就绪，下一步须从 T1 的 Red 阶段开始，尚未执行任何业务实现或测试。
 
+## 2026-07-19：DR-001 实施前基线门禁
+
+- **追踪 ID**：DR-001
+- **范围**：提交 remediation 文档后执行全仓测试基线；未修改业务代码、冻结基线或 T1 状态。
+- **命令与结果**：`COREPACK_HOME=/tmp/secret-space-corepack TMPDIR=/tmp TMP=/tmp TEMP=/tmp pnpm test` 退出码为 1；Shared 1/1、Admin 2/2 通过，Client 27/32 通过。
+- **失败证据**：仅 `packages/client/src/pixi/__tests__/SceneManager.test.ts` 的 5 个既有用例失败，均在 `SceneManager.init` 读取 `texture.height` 时抛出 `Cannot read properties of undefined (reading 'height')`。
+- **执行门禁**：Plan 执行流程要求代码任务的项目级基线全绿；因此未将 T1 标记为 `in-progress`，也未开始 Red 阶段。
+- **待决项**：需要决定先处理 DR-009 使全仓基线恢复绿色，还是明确接受针对已登记 DR-009 的受控例外后再启动 DR-001。
+
+## 2026-07-19：DR-009 基线修复开始
+
+- **追踪 ID**：DR-009
+- **状态变化**：用户选择先修复基线；DR-001 `in-progress` → `blocked`，DR-009 `queued` → `in-progress`，保持仅一个 active 条目。
+- **根因**：`SceneManager.init()` 在背景图功能加入后读取 `Assets.load('/assets/room-bg.png')` 返回纹理的 `height` 和 `width`；`SceneManager.test.ts` 的 Pixi `Assets.load` mock 未设置返回值，默认 `undefined`，导致 5 个调用 `init()` 的用例在同一行抛出 TypeError。
+- **范围**：只补齐测试 double 的纹理尺寸契约，不更改 `SceneManager` 生产逻辑、资源文件或 Pixi 版本。
+
+## 2026-07-19：DR-009 基线修复已验证
+
+- **追踪 ID**：DR-009
+- **实际修改**：`packages/client/src/pixi/__tests__/SceneManager.test.ts` 的 `Assets.load` mock 明确返回背景图的 `width: 2274`、`height: 1947`，与本地 `room-bg.png` 和 `SceneManager` 的读取契约一致。
+- **Red 证据**：修复前定向执行 Client 测试，5 个 `SceneManager` 用例均在 `SceneManager.ts:18` 因读取 undefined 的 `texture.height` 失败。
+- **Green 证据**：修复后 Client 测试为 8 个文件、32 个用例全部通过。
+- **完整验证**：`pnpm test` 通过：Shared 1/1、Admin 2/2、Client 32/32、Server 44/44；`pnpm build` 通过。构建仅保留既有的 Rollup PURE 注释和 chunk-size 警告。
+- **状态变化**：DR-009 `in-progress` → `verified`；DR-001 `blocked` → `queued`，可重新进入 T1 的 Red 阶段。
+
 ## 记录规范
 
 后续每次实施追加一个以日期和追踪 ID 命名的小节，并按以下顺序记录：

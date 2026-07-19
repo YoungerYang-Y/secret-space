@@ -14,7 +14,12 @@ vi.mock('pixi.js', () => {
     canvas: null,
     destroy: vi.fn(),
   }))
-  return { Application, Container, Sprite: vi.fn(), Assets: { load: vi.fn() } }
+  return {
+    Application,
+    Container,
+    Sprite: vi.fn(),
+    Assets: { load: vi.fn().mockResolvedValue({ width: 2274, height: 1947 }) },
+  }
 })
 
 describe('SceneManager', () => {
