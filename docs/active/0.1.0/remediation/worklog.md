@@ -79,6 +79,23 @@
 - **完整验证**：`pnpm test` 通过：Shared 1/1、Admin 2/2、Client 32/32、Server 44/44；`pnpm build` 通过。构建仅保留既有的 Rollup PURE 注释和 chunk-size 警告。
 - **状态变化**：DR-009 `in-progress` → `verified`；DR-001 `blocked` → `queued`，可重新进入 T1 的 Red 阶段。
 
+## 2026-07-19：DR-001 T6 部署清单与跨层验收
+
+- **追踪 ID**：DR-001 / T6
+- **范围**：创建部署运行手册 `deployment-checklist.md`；扩展 `app.e2e.test.ts` 增加私有媒体访问控制断言；运行全仓构建与测试验收。
+- **已创建文件**：`docs/active/0.1.0/remediation/dr-001-private-media/deployment-checklist.md`（7 节运行手册：备份、R2 私有访问、CORS 配置、dry-run、apply、回滚、provider 切换）。
+- **已修改文件**：`packages/server/src/__tests__/app.e2e.test.ts`（新增 4 个私有媒体访问控制 E2E 断言）；`docs/active/0.1.0/remediation/worklog.md`（本条目）。
+- **跨层验收证据**：
+  - `album-flow.e2e.test.ts`：匿名读取 → 401；管理员确认上传 → `media://` 引用保存 → 列表读取 → 签名 URL 返回。
+  - `app.e2e.test.ts`：匿名省份照片 → 401；匿名相册列表 → 401；授权用户省份照片 → 200；授权管理员相册 → 200。
+- **构建验证**：`pnpm build` 退出码 0；Shared、Server、Client、Admin 均构建成功。
+- **完整测试**：`pnpm test` 退出码 0；Server 141/141、Admin 11/11、Client 36/36、Shared 1/1 = 189/189 通过。
+- **AC 结果**：
+  - AC1 ✅：清单包含运行前备份、dry-run 零失败门槛、R2 CORS OPTIONS 验收、匿名直连非 2xx、apply、回滚和 30 天 provider 回退步骤。
+  - AC2 ✅：Server 集成测试验证匿名 401 无媒体 URL、授权角色获得签名 URL、管理端保存后再次读取显示媒体。
+  - AC3 ✅：全仓构建通过，`pnpm test` 189/189 通过。
+- **状态变化**：T6 `pending` → `done`。
+
 ## 记录规范
 
 后续每次实施追加一个以日期和追踪 ID 命名的小节，并按以下顺序记录：
