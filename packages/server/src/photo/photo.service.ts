@@ -1,10 +1,13 @@
 import { Injectable, Inject, NotFoundException, BadRequestException } from '@nestjs/common'
 import { PrismaService } from '../prisma/prisma.service'
 import { MEDIA_STORAGE } from '../media/media-storage'
-import type { MediaStorage } from '../media/media-storage'
+import type { MediaStorage, ImageExtension, ImageContentType } from '../media/media-storage'
 import { MediaReferenceService } from '../media/media-reference.service'
 import { ProvinceService } from '../province/province.service'
 import { extname } from 'path'
+
+const ALLOWED_CONTENT_TYPES: readonly string[] = ['image/jpeg', 'image/png', 'image/webp']
+const ALLOWED_EXTENSIONS: readonly string[] = ['.jpg', '.jpeg', '.png', '.webp']
 
 const PHOTO_PREFIXES = ['photos/']
 
@@ -18,12 +21,15 @@ export class PhotoService {
   ) {}
 
   async presign(provinceCode: string, filename: string, contentType: string) {
-    if (!contentType.startsWith('image/')) {
-      throw new BadRequestException('不支持的文件类型')
+    if (!ALLOWED_CONTENT_TYPES.includes(contentType)) {
+      throw new BadRequestException('不支持的文件类型，仅允许 image/jpeg、image/png、image/webp')
+    }
+    const ext = extname(filename) || '.webp'
+    if (!ALLOWED_EXTENSIONS.includes(ext)) {
+      throw new BadRequestException('不支持的文件扩展名，仅允许 .jpg、.jpeg、.png、.webp')
     }
     await this.provinceService.findByCode(provinceCode)
-    const ext = extname(filename) || '.webp'
-    return this.storage.presignPhotoUpload(provinceCode, ext as any, contentType as any)
+    return this.storage.presignPhotoUpload(provinceCode, ext as ImageExtension, contentType as ImageContentType)
   }
 
   async create(data: { provinceCode: string; mediaRef: string; annotation?: string; order: number }) {
