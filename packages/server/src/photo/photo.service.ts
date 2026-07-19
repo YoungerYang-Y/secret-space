@@ -1,6 +1,7 @@
-import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common'
+import { Injectable, Inject, NotFoundException, BadRequestException } from '@nestjs/common'
 import { PrismaService } from '../prisma/prisma.service'
-import { R2Service } from '../r2/r2.service'
+import { MEDIA_STORAGE } from '../media/media-storage'
+import type { MediaStorage } from '../media/media-storage'
 import { ProvinceService } from '../province/province.service'
 import { extname } from 'path'
 
@@ -8,7 +9,7 @@ import { extname } from 'path'
 export class PhotoService {
   constructor(
     private prisma: PrismaService,
-    private r2: R2Service,
+    @Inject(MEDIA_STORAGE) private storage: MediaStorage,
     private provinceService: ProvinceService,
   ) {}
 
@@ -18,7 +19,7 @@ export class PhotoService {
     }
     await this.provinceService.findByCode(provinceCode)
     const ext = extname(filename) || '.webp'
-    return this.r2.presign(provinceCode, ext, contentType)
+    return this.storage.presignPhotoUpload(provinceCode, ext as any, contentType as any)
   }
 
   async create(data: { provinceCode: string; url: string; key: string; annotation?: string; order: number }) {
@@ -57,7 +58,7 @@ export class PhotoService {
     const photo = await this.prisma.photo.findUnique({ where: { id } })
     if (!photo) throw new NotFoundException('照片不存在')
     if (photo.key) {
-      await this.r2.delete(photo.key)
+      await this.storage.delete(photo.key)
     }
     await this.prisma.photo.delete({ where: { id } })
   }

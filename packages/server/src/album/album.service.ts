@@ -1,13 +1,14 @@
-import { Injectable, NotFoundException, ConflictException, BadRequestException } from '@nestjs/common'
+import { Injectable, Inject, NotFoundException, ConflictException, BadRequestException } from '@nestjs/common'
 import { PrismaService } from '../prisma/prisma.service'
-import { R2Service } from '../r2/r2.service'
+import { MEDIA_STORAGE } from '../media/media-storage'
+import type { MediaStorage } from '../media/media-storage'
 import { CreateAlbumDto, UpdateAlbumDto, CreatePageDto, UpdatePageDto, ReorderPagesDto } from './dto/album.dto'
 
 @Injectable()
 export class AlbumService {
   constructor(
     private prisma: PrismaService,
-    private r2: R2Service,
+    @Inject(MEDIA_STORAGE) private storage: MediaStorage,
   ) {}
 
   findAll() {
@@ -58,13 +59,13 @@ export class AlbumService {
 
     await this.prisma.album.delete({ where: { id } })
 
-    // Best-effort R2 cleanup — log keys for traceability, failures don't block
-    if (keys.length) console.log(`R2 cleanup: deleting ${keys.length} keys for album ${id}`, keys)
+    // Best-effort cleanup — log keys for traceability, failures don't block
+    if (keys.length) console.log(`Storage cleanup: deleting ${keys.length} keys for album ${id}`, keys)
     await Promise.allSettled(keys.map(async (key) => {
       try {
-        await this.r2.delete(key)
+        await this.storage.delete(key)
       } catch (e) {
-        console.error(`R2 cleanup failed for key: ${key}`, e)
+        console.error(`Storage cleanup failed for key: ${key}`, e)
       }
     }))
   }
