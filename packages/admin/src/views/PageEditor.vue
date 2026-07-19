@@ -16,7 +16,7 @@ interface Page {
   id: string
   order: number
   templateId: string
-  content: { images: string[]; text?: string }
+  content: { images: string[]; previewUrls: string[]; text?: string }
 }
 
 const TEMPLATES = [
@@ -40,10 +40,14 @@ function getHeaders() {
 
 async function fetchPages() {
   const res = await axios.get(`/albums/${albumId.value}/pages`)
-  pages.value = res.data.map((p: any) => ({
-    ...p,
-    content: typeof p.content === 'string' ? JSON.parse(p.content) : p.content,
-  }))
+  pages.value = res.data.map((p: any) => {
+    const content = typeof p.content === 'string' ? JSON.parse(p.content) : p.content
+    // Ensure previewUrls exists for display (server returns signed URLs in images for existing pages)
+    if (!content.previewUrls) {
+      content.previewUrls = [...content.images]
+    }
+    return { ...p, content }
+  })
   if (pages.value.length && !selectedPage.value) {
     selectedPage.value = pages.value[0]
   }
@@ -66,11 +70,11 @@ async function handleDragEnd() {
 
 async function addPage() {
   const tpl = TEMPLATES.find((t) => t.id === newTemplateId.value)!
-  const content = { images: Array(tpl.slots).fill(''), text: '' }
+  const content = { images: Array(tpl.slots).fill(''), previewUrls: Array(tpl.slots).fill(''), text: '' }
   try {
     await axios.post(`/albums/${albumId.value}/pages`, {
       templateId: newTemplateId.value,
-      content,
+      content: { images: content.images, text: content.text },
       order: pages.value.length + 1,
     }, { headers: getHeaders() })
     addDialogVisible.value = false
@@ -87,7 +91,7 @@ async function savePage() {
   try {
     await axios.put(`/pages/${selectedPage.value.id}`, {
       templateId: selectedPage.value.templateId,
-      content: selectedPage.value.content,
+      content: { images: selectedPage.value.content.images, text: selectedPage.value.content.text },
     }, { headers: getHeaders() })
     ElMessage.success('保存成功')
   } catch {
@@ -110,13 +114,27 @@ async function uploadImage(file: File, index: number) {
   if (!selectedPage.value) return
   try {
     const compressed = await compressImage(file)
+
+    // Step 1: Get presigned upload URL
     const presignRes = await axios.post('/albums/presign', {
       filename: `page-${Date.now()}.webp`,
       contentType: 'image/webp',
     }, { headers: getHeaders() })
+
     const { uploadUrl, key } = presignRes.data
+
+    // Step 2: PUT to presigned URL
     await fetch(uploadUrl, { method: 'PUT', body: compressed, headers: { 'Content-Type': 'image/webp' } })
-    selectedPage.value.content.images[index] = presignRes.data.publicUrl
+
+    // Step 3: Confirm upload to get mediaRef and readUrl
+    const confirmRes = await axios.post('/media/confirm', { key }, { headers: getHeaders() })
+    const { mediaRef, readUrl } = confirmRes.data
+
+    // Step 4: Update state - images stores mediaRef, previewUrls stores readUrl
+    selectedPage.value.content.images[index] = mediaRef
+    selectedPage.value.content.previewUrls[index] = readUrl
+
+    // Step 5: Save page
     await savePage()
   } catch {
     ElMessage.error('上传失败')
@@ -131,10 +149,11 @@ watch(() => selectedPage.value?.templateId, (newId, oldId) => {
   if (!selectedPage.value || !newId || !oldId) return
   const slots = getSlotCount(newId)
   selectedPage.value.content.images = selectedPage.value.content.images.slice(0, slots)
+  selectedPage.value.content.previewUrls = selectedPage.value.content.previewUrls.slice(0, slots)
   while (selectedPage.value.content.images.length < slots) {
     selectedPage.value.content.images.push('')
+    selectedPage.value.content.previewUrls.push('')
   }
-  // 仅在有实际图片内容时自动保存，避免空数组写入
   if (selectedPage.value.content.images.some(Boolean)) savePage()
 })
 
@@ -175,8 +194,8 @@ onMounted(() => { fetchPages(); fetchAlbumInfo() })
         <div class="image-slots">
           <div v-for="i in getSlotCount(selectedPage.templateId)" :key="i" class="image-slot">
             <el-image
-              v-if="selectedPage.content.images[i-1]"
-              :src="selectedPage.content.images[i-1]"
+              v-if="selectedPage.content.previewUrls[i-1]"
+              :src="selectedPage.content.previewUrls[i-1]"
               style="width:120px;height:90px"
               fit="cover"
             />
@@ -185,7 +204,7 @@ onMounted(() => { fetchPages(); fetchAlbumInfo() })
               :before-upload="(file: any) => { uploadImage(file, i-1); return false }"
               accept="image/*"
             >
-              <el-button size="small">{{ selectedPage.content.images[i-1] ? '替换' : '上传' }} 图{{ i }}</el-button>
+              <el-button size="small">{{ selectedPage.content.previewUrls[i-1] ? '替换' : '上传' }} 图{{ i }}</el-button>
             </el-upload>
           </div>
         </div>
