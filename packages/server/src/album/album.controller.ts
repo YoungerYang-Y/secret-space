@@ -4,8 +4,11 @@ import { CreateAlbumDto, UpdateAlbumDto, CreatePageDto, UpdatePageDto, ReorderPa
 import { RolesGuard } from '../auth/roles.guard'
 import { Roles } from '../auth/roles.decorator'
 import { MEDIA_STORAGE } from '../media/media-storage'
-import type { MediaStorage } from '../media/media-storage'
+import type { MediaStorage, ImageExtension, ImageContentType } from '../media/media-storage'
 import { extname } from 'path'
+
+const ALLOWED_CONTENT_TYPES: readonly string[] = ['image/jpeg', 'image/png', 'image/webp']
+const ALLOWED_EXTENSIONS: readonly string[] = ['.jpg', '.jpeg', '.png', '.webp']
 
 @Controller()
 @UseGuards(RolesGuard)
@@ -25,11 +28,14 @@ export class AlbumController {
   @Roles('admin')
   @HttpCode(200)
   async presign(@Body() body: AlbumPresignDto) {
-    if (!body.contentType?.startsWith('image/')) {
-      throw new BadRequestException('不支持的文件类型')
+    if (!ALLOWED_CONTENT_TYPES.includes(body.contentType)) {
+      throw new BadRequestException('不支持的文件类型，仅允许 image/jpeg、image/png、image/webp')
     }
     const ext = extname(body.filename) || '.webp'
-    return this.storage.presignAlbumUpload(ext as any, body.contentType as any)
+    if (!ALLOWED_EXTENSIONS.includes(ext)) {
+      throw new BadRequestException('不支持的文件扩展名，仅允许 .jpg、.jpeg、.png、.webp')
+    }
+    return this.storage.presignAlbumUpload(ext as ImageExtension, body.contentType as ImageContentType)
   }
 
   @Get('albums/:id/pages')

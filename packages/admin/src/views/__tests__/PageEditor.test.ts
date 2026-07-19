@@ -62,10 +62,10 @@ describe('PageEditor image upload flow', () => {
   it('AC1: 页面图片上传按 presign → PUT → confirm → save 顺序，保存 mediaRef', async () => {
     mockAxios.post
       .mockResolvedValueOnce({
-        data: { uploadUrl: 'https://r2.example.com/upload-page', key: 'albums/page-img.webp', uploadExpiresIn: 600 },
+        data: { uploadUrl: 'https://r2.example.com/upload-page', key: 'photos/album/page-img.webp', uploadExpiresIn: 600 },
       }) // presign
       .mockResolvedValueOnce({
-        data: { mediaRef: 'media://albums/page-img.webp', readUrl: 'https://r2.example.com/read/page-img.webp?sig=page', readExpiresIn: 300 },
+        data: { mediaRef: 'media://photos/album/page-img.webp', readUrl: 'https://r2.example.com/read/page-img.webp?sig=page', readExpiresIn: 300 },
       }) // confirm
 
     mockAxios.put.mockResolvedValueOnce({}) // save page
@@ -97,7 +97,7 @@ describe('PageEditor image upload flow', () => {
     // Verify confirm
     expect(mockAxios.post).toHaveBeenCalledWith(
       '/media/confirm',
-      { key: 'albums/page-img.webp' },
+      { key: 'photos/album/page-img.webp' },
       expect.objectContaining({ headers: expect.any(Object) }),
     )
 
@@ -106,7 +106,7 @@ describe('PageEditor image upload flow', () => {
       '/pages/p1',
       expect.objectContaining({
         content: expect.objectContaining({
-          images: ['media://albums/page-img.webp'],
+          images: ['media://photos/album/page-img.webp'],
         }),
       }),
       expect.objectContaining({ headers: expect.any(Object) }),
@@ -116,10 +116,10 @@ describe('PageEditor image upload flow', () => {
   it('AC2: 预览使用 readUrl，save 使用 mediaRef，state 不含 publicUrl', async () => {
     mockAxios.post
       .mockResolvedValueOnce({
-        data: { uploadUrl: 'https://r2.example.com/upload-page2', key: 'albums/page-img2.webp', uploadExpiresIn: 600 },
+        data: { uploadUrl: 'https://r2.example.com/upload-page2', key: 'photos/album/page-img2.webp', uploadExpiresIn: 600 },
       })
       .mockResolvedValueOnce({
-        data: { mediaRef: 'media://albums/page-img2.webp', readUrl: 'https://r2.example.com/read/page-img2.webp?sig=x', readExpiresIn: 300 },
+        data: { mediaRef: 'media://photos/album/page-img2.webp', readUrl: 'https://r2.example.com/read/page-img2.webp?sig=x', readExpiresIn: 300 },
       })
 
     mockAxios.put.mockResolvedValueOnce({})
@@ -135,7 +135,7 @@ describe('PageEditor image upload flow', () => {
     // The preview URL in the component should be the readUrl
     expect(vm.selectedPage.content.previewUrls[0]).toBe('https://r2.example.com/read/page-img2.webp?sig=x')
     // images array should contain mediaRef for saving
-    expect(vm.selectedPage.content.images[0]).toBe('media://albums/page-img2.webp')
+    expect(vm.selectedPage.content.images[0]).toBe('media://photos/album/page-img2.webp')
 
     // Nothing should contain publicUrl
     const pageStr = JSON.stringify(vm.selectedPage)
@@ -146,7 +146,7 @@ describe('PageEditor image upload flow', () => {
   it('AC3: 确认失败时显示错误且不发出保存请求', async () => {
     mockAxios.post
       .mockResolvedValueOnce({
-        data: { uploadUrl: 'https://r2.example.com/upload-fail', key: 'albums/fail.webp', uploadExpiresIn: 600 },
+        data: { uploadUrl: 'https://r2.example.com/upload-fail', key: 'photos/album/fail.webp', uploadExpiresIn: 600 },
       })
       .mockRejectedValueOnce(new Error('confirm failed'))
 
