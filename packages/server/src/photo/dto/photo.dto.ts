@@ -1,4 +1,4 @@
-import { IsString, IsNotEmpty, IsInt, IsOptional, IsArray, IsUrl, Matches } from 'class-validator'
+import { IsString, IsNotEmpty, IsInt, IsOptional, IsArray, Matches } from 'class-validator'
 
 export class PresignDto {
   @IsString()
@@ -20,13 +20,10 @@ export class CreatePhotoDto {
   @IsNotEmpty()
   provinceCode: string
 
-  @IsUrl({ require_tld: false })
-  @IsNotEmpty()
-  url: string
-
   @IsString()
   @IsNotEmpty()
-  key: string
+  @Matches(/^media:\/\//, { message: 'mediaRef must start with media://' })
+  mediaRef: string
 
   @IsString()
   @IsOptional()
