@@ -1,5 +1,6 @@
 import { Module } from '@nestjs/common'
 import { MEDIA_STORAGE } from './media-storage'
+import { MediaReferenceService } from './media-reference.service'
 import { R2MediaStorage } from './r2-media-storage'
 import { loadStorageConfig } from '../config/storage-config'
 
@@ -19,7 +20,8 @@ import { loadStorageConfig } from '../config/storage-config'
         }
       },
     },
+    MediaReferenceService,
   ],
-  exports: [MEDIA_STORAGE],
+  exports: [MEDIA_STORAGE, MediaReferenceService],
 })
 export class MediaModule {}
