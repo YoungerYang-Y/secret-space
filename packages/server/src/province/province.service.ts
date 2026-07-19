@@ -64,8 +64,12 @@ export class ProvinceService {
       return this.storage.presignRead(key)
     }
     // Legacy URL: convert to media ref then sign
-    const ref = this.mediaRef.fromLegacyUrl(url, PHOTO_PREFIXES)
-    const key = this.mediaRef.toLogicalKey(ref, PHOTO_PREFIXES)
-    return this.storage.presignRead(key)
+    try {
+      const ref = this.mediaRef.fromLegacyUrl(url, PHOTO_PREFIXES)
+      const key = this.mediaRef.toLogicalKey(ref, PHOTO_PREFIXES)
+      return this.storage.presignRead(key)
+    } catch {
+      return url
+    }
   }
 }

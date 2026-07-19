@@ -58,10 +58,10 @@ describe('AlbumList cover upload flow', () => {
   it('AC1: 封面上传按 presign → PUT → confirm 顺序，预览使用 readUrl', async () => {
     mockAxios.post
       .mockResolvedValueOnce({
-        data: { uploadUrl: 'https://r2.example.com/upload-cover', key: 'albums/cover-123.webp', uploadExpiresIn: 600 },
+        data: { uploadUrl: 'https://r2.example.com/upload-cover', key: 'photos/album/cover-123.webp', uploadExpiresIn: 600 },
       }) // presign
       .mockResolvedValueOnce({
-        data: { mediaRef: 'media://albums/cover-123.webp', readUrl: 'https://r2.example.com/read/cover-123.webp?sig=def', readExpiresIn: 300 },
+        data: { mediaRef: 'media://photos/album/cover-123.webp', readUrl: 'https://r2.example.com/read/cover-123.webp?sig=def', readExpiresIn: 300 },
       }) // confirm
 
     const wrapper = mount(AlbumList, mountOptions)
@@ -89,13 +89,13 @@ describe('AlbumList cover upload flow', () => {
     // Verify confirm called with key
     expect(mockAxios.post).toHaveBeenCalledWith(
       '/media/confirm',
-      { key: 'albums/cover-123.webp' },
+      { key: 'photos/album/cover-123.webp' },
       expect.objectContaining({ headers: expect.any(Object) }),
     )
 
     // AC2: Preview uses readUrl, form stores coverRef
     expect(vm.form.coverPreviewUrl).toBe('https://r2.example.com/read/cover-123.webp?sig=def')
-    expect(vm.form.coverRef).toBe('media://albums/cover-123.webp')
+    expect(vm.form.coverRef).toBe('media://photos/album/cover-123.webp')
   })
 
   it('AC2: submit 时发送 coverRef 而非 publicUrl/coverUrl', async () => {
@@ -108,7 +108,7 @@ describe('AlbumList cover upload flow', () => {
     vm.openCreate()
     vm.form.year = 2024
     vm.form.title = '测试相册'
-    vm.form.coverRef = 'media://albums/cover-test.webp'
+    vm.form.coverRef = 'media://photos/album/cover-test.webp'
     vm.form.coverPreviewUrl = 'https://r2.example.com/read/cover-test.webp?sig=abc'
     await vm.handleSubmit()
     await flushPromises()
@@ -117,7 +117,7 @@ describe('AlbumList cover upload flow', () => {
     const albumCalls = mockAxios.post.mock.calls.filter(([url]: [string]) => url === '/albums')
     expect(albumCalls.length).toBeGreaterThan(0)
     const payload = albumCalls[0][1]
-    expect(payload).toHaveProperty('coverRef', 'media://albums/cover-test.webp')
+    expect(payload).toHaveProperty('coverRef', 'media://photos/album/cover-test.webp')
     expect(payload).not.toHaveProperty('coverUrl')
     expect(payload).not.toHaveProperty('publicUrl')
   })
@@ -125,7 +125,7 @@ describe('AlbumList cover upload flow', () => {
   it('AC3: 确认失败时显示错误且不更新表单状态', async () => {
     mockAxios.post
       .mockResolvedValueOnce({
-        data: { uploadUrl: 'https://r2.example.com/upload-cover', key: 'albums/cover-fail.webp', uploadExpiresIn: 600 },
+        data: { uploadUrl: 'https://r2.example.com/upload-cover', key: 'photos/album/cover-fail.webp', uploadExpiresIn: 600 },
       })
       .mockRejectedValueOnce(new Error('confirm error'))
 

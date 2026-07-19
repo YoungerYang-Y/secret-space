@@ -140,6 +140,12 @@ export class R2MediaStorage implements MediaStorage {
     await this.client.send(new DeleteObjectCommand({ Bucket: this.bucket, Key: key }))
   }
 
+  /**
+   * NOTE: R2/S3 presigned PUT URLs do not support Content-Length-Range conditions.
+   * Upload size is enforced at confirm time via HeadObject (10 MiB limit).
+   * This is acceptable because: (a) only admin can presign, (b) unconfirmed
+   * oversized objects are cleaned up by DR-002 lifecycle rules.
+   */
   private async createUploadGrant(
     key: string,
     contentType: ImageContentType,
