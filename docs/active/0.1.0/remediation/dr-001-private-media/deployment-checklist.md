@@ -130,7 +130,7 @@ pnpm --filter @secret-space/server media:migrate-legacy-refs -- --apply
 
 ```bash
 sqlite3 data/secret-space.db \
-  "SELECT count(*) FROM photo WHERE mediaUrl NOT LIKE 'media://%';"
+  "SELECT count(*) FROM photo WHERE url NOT LIKE 'media://%';"
 # 预期：0
 
 sqlite3 data/secret-space.db \

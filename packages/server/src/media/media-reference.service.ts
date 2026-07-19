@@ -55,20 +55,18 @@ export class MediaReferenceService {
   }
 
   private assertMediaProtocol(input: string): void {
+    // Reject known invalid protocol patterns first (gives better error messages)
+    if (input.startsWith('r2://') || input.startsWith('s3://')) {
+      throw new BadRequestException('Invalid media reference: vendor-specific storage URLs are not allowed')
+    }
+    if (input.startsWith('http://') || input.startsWith('https://')) {
+      throw new BadRequestException('Invalid media reference: HTTP URLs are not allowed, use media:// protocol')
+    }
+
     if (!input.startsWith(MEDIA_PROTOCOL)) {
       throw new BadRequestException(
         `Invalid media reference: must start with ${MEDIA_PROTOCOL}`,
       )
-    }
-
-    // Reject other protocol-like patterns
-    if (
-      input.startsWith('r2://') ||
-      input.startsWith('s3://') ||
-      input.startsWith('http://') ||
-      input.startsWith('https://')
-    ) {
-      throw new BadRequestException('Invalid media reference: vendor URLs are not allowed')
     }
   }
 
