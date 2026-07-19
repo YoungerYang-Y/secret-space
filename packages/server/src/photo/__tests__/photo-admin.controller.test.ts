@@ -24,8 +24,9 @@ describe('Photo Admin API', () => {
     expect(res.status).toBe(200)
     expect(res.body).toHaveProperty('uploadUrl')
     expect(res.body).toHaveProperty('key')
-    expect(res.body).toHaveProperty('publicUrl')
+    expect(res.body).toHaveProperty('mediaRef')
     expect(res.body.key).toMatch(/^photos\/hunan\//)
+    expect(res.body.mediaRef).toMatch(/^media:\/\/photos\/hunan\//)
   })
 
   it('POST /photos/presign 拒绝非 image 类型', async () => {

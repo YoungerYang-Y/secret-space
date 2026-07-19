@@ -1,9 +1,10 @@
-import { Controller, Get, Post, Put, Delete, Param, Body, UseGuards, HttpCode, BadRequestException } from '@nestjs/common'
+import { Controller, Get, Post, Put, Delete, Param, Body, UseGuards, HttpCode, Inject, BadRequestException } from '@nestjs/common'
 import { AlbumService } from './album.service'
 import { CreateAlbumDto, UpdateAlbumDto, CreatePageDto, UpdatePageDto, ReorderPagesDto, AlbumPresignDto } from './dto/album.dto'
 import { RolesGuard } from '../auth/roles.guard'
 import { Roles } from '../auth/roles.decorator'
-import { R2Service } from '../r2/r2.service'
+import { MEDIA_STORAGE } from '../media/media-storage'
+import type { MediaStorage } from '../media/media-storage'
 import { extname } from 'path'
 
 @Controller()
@@ -11,7 +12,7 @@ import { extname } from 'path'
 export class AlbumController {
   constructor(
     private albumService: AlbumService,
-    private r2: R2Service,
+    @Inject(MEDIA_STORAGE) private storage: MediaStorage,
   ) {}
 
   @Get('albums')
@@ -28,7 +29,7 @@ export class AlbumController {
       throw new BadRequestException('不支持的文件类型')
     }
     const ext = extname(body.filename) || '.webp'
-    return this.r2.presign('album', ext, body.contentType)
+    return this.storage.presignAlbumUpload(ext as any, body.contentType as any)
   }
 
   @Get('albums/:id/pages')
