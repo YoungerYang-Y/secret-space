@@ -20,7 +20,7 @@ interface Album {
 const albums = ref<Album[]>([])
 const dialogVisible = ref(false)
 const editingAlbum = ref<Album | null>(null)
-const form = ref({ year: new Date().getFullYear(), title: '', coverUrl: '' })
+const form = ref({ year: new Date().getFullYear(), title: '', coverRef: '', coverPreviewUrl: '' })
 const submitting = ref(false)
 
 function getHeaders() {
@@ -34,13 +34,18 @@ async function fetchAlbums() {
 
 function openCreate() {
   editingAlbum.value = null
-  form.value = { year: new Date().getFullYear(), title: '', coverUrl: '' }
+  form.value = { year: new Date().getFullYear(), title: '', coverRef: '', coverPreviewUrl: '' }
   dialogVisible.value = true
 }
 
 function openEdit(album: Album) {
   editingAlbum.value = album
-  form.value = { year: album.year, title: album.title || '', coverUrl: album.coverUrl || '' }
+  form.value = {
+    year: album.year,
+    title: album.title || '',
+    coverRef: '',
+    coverPreviewUrl: album.coverUrl || '',
+  }
   dialogVisible.value = true
 }
 
@@ -48,10 +53,14 @@ async function handleSubmit() {
   if (submitting.value) return
   submitting.value = true
   try {
+    const payload: Record<string, any> = { year: form.value.year, title: form.value.title }
+    if (form.value.coverRef) {
+      payload.coverRef = form.value.coverRef
+    }
     if (editingAlbum.value) {
-      await axios.put(`/albums/${editingAlbum.value.id}`, form.value, { headers: getHeaders() })
+      await axios.put(`/albums/${editingAlbum.value.id}`, payload, { headers: getHeaders() })
     } else {
-      await axios.post('/albums', form.value, { headers: getHeaders() })
+      await axios.post('/albums', payload, { headers: getHeaders() })
     }
     dialogVisible.value = false
     await fetchAlbums()
@@ -83,13 +92,25 @@ onMounted(fetchAlbums)
 async function handleCoverUpload(file: File) {
   try {
     const compressed = await compressImage(file)
-    // 使用 album 专用 presign 端点
+
+    // Step 1: Get presigned upload URL
     const presignRes = await axios.post('/albums/presign', {
       filename: `cover-${Date.now()}.webp`,
       contentType: 'image/webp',
     }, { headers: getHeaders() })
-    await fetch(presignRes.data.uploadUrl, { method: 'PUT', body: compressed, headers: { 'Content-Type': 'image/webp' } })
-    form.value.coverUrl = presignRes.data.publicUrl
+
+    const { uploadUrl, key } = presignRes.data
+
+    // Step 2: PUT to presigned URL
+    await fetch(uploadUrl, { method: 'PUT', body: compressed, headers: { 'Content-Type': 'image/webp' } })
+
+    // Step 3: Confirm upload to get mediaRef and readUrl
+    const confirmRes = await axios.post('/media/confirm', { key }, { headers: getHeaders() })
+    const { mediaRef, readUrl } = confirmRes.data
+
+    // Step 4: Update form state
+    form.value.coverRef = mediaRef
+    form.value.coverPreviewUrl = readUrl
     ElMessage.success('封面已上传')
   } catch {
     ElMessage.error('封面上传失败')
@@ -132,15 +153,15 @@ async function handleCoverUpload(file: File) {
           <el-input v-model="form.title" placeholder="可选，如：2024年的回忆" />
         </el-form-item>
         <el-form-item label="封面">
-          <div v-if="form.coverUrl" style="margin-bottom:8px">
-            <el-image :src="form.coverUrl" style="width:80px;height:80px" fit="cover" />
+          <div v-if="form.coverPreviewUrl" style="margin-bottom:8px">
+            <el-image :src="form.coverPreviewUrl" style="width:80px;height:80px" fit="cover" />
           </div>
           <el-upload
             :show-file-list="false"
             :before-upload="handleCoverUpload"
             accept="image/*"
           >
-            <el-button size="small">{{ form.coverUrl ? '替换封面' : '上传封面' }}</el-button>
+            <el-button size="small">{{ form.coverPreviewUrl ? '替换封面' : '上传封面' }}</el-button>
           </el-upload>
         </el-form-item>
       </el-form>
