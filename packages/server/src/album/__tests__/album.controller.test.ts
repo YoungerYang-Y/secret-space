@@ -4,18 +4,22 @@ import * as jwt from 'jsonwebtoken'
 import { JWT_SECRET } from '../../auth/auth.service'
 import { PrismaService } from '../../prisma/prisma.service'
 import { createTestApp } from '../../__tests__/test-utils'
+import type { MediaStorage } from '../../media/media-storage'
 
 const adminToken = jwt.sign({ role: 'admin' }, JWT_SECRET, { expiresIn: '1h' })
 const ownerToken = jwt.sign({ role: 'owner' }, JWT_SECRET, { expiresIn: '1h' })
+const visitorToken = jwt.sign({ role: 'visitor' }, JWT_SECRET, { expiresIn: '1h' })
 
 describe('Album API', () => {
   let app: INestApplication
   let prisma: PrismaService
+  let mockStorage: MediaStorage
 
   beforeAll(async () => {
-    const { app: testApp, module } = await createTestApp()
+    const { app: testApp, module, mockStorage: ms } = await createTestApp()
     app = testApp
     prisma = module.get(PrismaService)
+    mockStorage = ms
   })
 
   afterAll(() => app.close())
@@ -33,6 +37,23 @@ describe('Album API', () => {
     expect(res.body).toEqual([])
   })
 
+  // --- AC2: 匿名相册读取返回 401 ---
+
+  it('GET /albums 匿名返回 401', async () => {
+    const res = await request(app.getHttpServer()).get('/api/albums')
+    expect(res.status).toBe(401)
+  })
+
+  // --- AC4: 过期或失效会话读取相册列表返回 401 ---
+
+  it('GET /albums 失效 token 返回 401', async () => {
+    const expiredToken = jwt.sign({ role: 'visitor', iat: 1000000 }, JWT_SECRET, { expiresIn: '1s' })
+    // Wait briefly to ensure expiry
+    await new Promise((r) => setTimeout(r, 1100))
+    const res = await request(app.getHttpServer()).get('/api/albums').set('Authorization', `Bearer ${expiredToken}`)
+    expect(res.status).toBe(401)
+  })
+
   it('GET /albums returns albums sorted by year asc', async () => {
     await prisma.album.create({ data: { year: 2025 } })
     await prisma.album.create({ data: { year: 2023 } })
@@ -44,15 +65,47 @@ describe('Album API', () => {
     expect(res.body[2].year).toBe(2025)
   })
 
-  it('POST /albums creates album with admin token', async () => {
+  // --- AC2: 读取相册时 coverUrl 为 media:// 返回签名 URL ---
+
+  it('GET /albums 返回签名的 coverUrl', async () => {
+    await prisma.album.create({ data: { year: 2024, coverUrl: 'media://photos/album/cover.webp' } })
+    const res = await request(app.getHttpServer()).get('/api/albums').set('Authorization', `Bearer ${visitorToken}`)
+    expect(res.status).toBe(200)
+    expect(res.body[0].coverUrl).toMatch(/^https:\/\/signed\.example\.com\/photos\/album\/cover\.webp/)
+  })
+
+  // --- AC3: 相册空封面不签名 ---
+
+  it('GET /albums 空封面返回 null 不签名', async () => {
+    await prisma.album.create({ data: { year: 2024 } })
+    const res = await request(app.getHttpServer()).get('/api/albums').set('Authorization', `Bearer ${visitorToken}`)
+    expect(res.status).toBe(200)
+    expect(res.body[0].coverUrl).toBeNull()
+  })
+
+  // --- AC1: album writes use coverRef and only admin ---
+
+  it('POST /albums creates album with coverRef', async () => {
     const res = await request(app.getHttpServer())
       .post('/api/albums')
       .set('Authorization', `Bearer ${adminToken}`)
-      .send({ year: 2024, title: '2024年的回忆', coverUrl: 'https://example.com/cover.jpg' })
+      .send({ year: 2024, title: '2024年的回忆', coverRef: 'media://photos/album/cover.webp' })
     expect(res.status).toBe(201)
     expect(res.body.year).toBe(2024)
     expect(res.body.title).toBe('2024年的回忆')
     expect(res.body.id).toBeDefined()
+    // Persisted as media:// ref
+    expect(res.body.coverUrl).toBe('media://photos/album/cover.webp')
+  })
+
+  // --- AC3: 含 provider 信息的引用返回 400 ---
+
+  it('POST /albums coverRef 含 vendor URL 返回 400', async () => {
+    const res = await request(app.getHttpServer())
+      .post('/api/albums')
+      .set('Authorization', `Bearer ${adminToken}`)
+      .send({ year: 2024, coverRef: 'https://r2.example.com/photos/album/cover.webp' })
+    expect(res.status).toBe(400)
   })
 
   it('POST /albums returns 409 for duplicate year', async () => {
@@ -89,6 +142,16 @@ describe('Album API', () => {
     expect(res.body.title).toBe('新标题')
   })
 
+  it('PUT /albums/:id updates coverRef', async () => {
+    const album = await prisma.album.create({ data: { year: 2024 } })
+    const res = await request(app.getHttpServer())
+      .put(`/api/albums/${album.id}`)
+      .set('Authorization', `Bearer ${adminToken}`)
+      .send({ coverRef: 'media://photos/album/new-cover.webp' })
+    expect(res.status).toBe(200)
+    expect(res.body.coverUrl).toBe('media://photos/album/new-cover.webp')
+  })
+
   it('PUT /albums/:id returns 409 for year conflict', async () => {
     await prisma.album.create({ data: { year: 2024 } })
     const album2 = await prisma.album.create({ data: { year: 2025 } })
@@ -110,7 +173,7 @@ describe('Album API', () => {
   it('DELETE /albums/:id returns 204 and cascades', async () => {
     const album = await prisma.album.create({ data: { year: 2024 } })
     await prisma.page.create({
-      data: { albumId: album.id, order: 1, templateId: 'single', content: JSON.stringify({ images: ['https://r2.example.com/photos/test/abc.webp'] }) },
+      data: { albumId: album.id, order: 1, templateId: 'single', content: JSON.stringify({ images: ['media://photos/album/abc.webp'] }) },
     })
     const res = await request(app.getHttpServer())
       .delete(`/api/albums/${album.id}`)
@@ -129,15 +192,41 @@ describe('Album API', () => {
 
   // --- Pages CRUD ---
 
-  it('GET /albums/:id/pages returns pages sorted by order', async () => {
+  // --- AC2: 匿名页面读取返回 401 ---
+
+  it('GET /albums/:id/pages 匿名返回 401', async () => {
     const album = await prisma.album.create({ data: { year: 2024 } })
-    await prisma.page.create({ data: { albumId: album.id, order: 2, templateId: 'single', content: '{"images":["a.jpg"]}' } })
-    await prisma.page.create({ data: { albumId: album.id, order: 1, templateId: 'double-h', content: '{"images":["b.jpg","c.jpg"]}' } })
-    const res = await request(app.getHttpServer()).get(`/api/albums/${album.id}/pages`).set('Authorization', `Bearer ${adminToken}`)
+    const res = await request(app.getHttpServer()).get(`/api/albums/${album.id}/pages`)
+    expect(res.status).toBe(401)
+  })
+
+  it('GET /albums/:id/pages returns pages sorted by order with signed URLs', async () => {
+    const album = await prisma.album.create({ data: { year: 2024 } })
+    await prisma.page.create({ data: { albumId: album.id, order: 2, templateId: 'single', content: '{"images":["media://photos/album/a.webp"]}' } })
+    await prisma.page.create({ data: { albumId: album.id, order: 1, templateId: 'double-h', content: '{"images":["media://photos/album/b.webp","media://photos/album/c.webp"]}' } })
+    const res = await request(app.getHttpServer()).get(`/api/albums/${album.id}/pages`).set('Authorization', `Bearer ${visitorToken}`)
     expect(res.status).toBe(200)
     expect(res.body).toHaveLength(2)
     expect(res.body[0].order).toBe(1)
     expect(res.body[1].order).toBe(2)
+    // Images should be signed
+    const content = JSON.parse(res.body[0].content)
+    expect(content.images[0]).toMatch(/^https:\/\/signed\.example\.com\/photos\/album\/b\.webp/)
+    expect(content.images[1]).toMatch(/^https:\/\/signed\.example\.com\/photos\/album\/c\.webp/)
+  })
+
+  // --- AC3: 空图片不签名 ---
+
+  it('GET /albums/:id/pages 空图片数组不触发签名', async () => {
+    const album = await prisma.album.create({ data: { year: 2024 } })
+    await prisma.page.create({ data: { albumId: album.id, order: 1, templateId: 'single', content: '{"images":[]}' } })
+    const callCountBefore = vi.mocked(mockStorage.presignRead).mock.calls.length
+    const res = await request(app.getHttpServer()).get(`/api/albums/${album.id}/pages`).set('Authorization', `Bearer ${visitorToken}`)
+    expect(res.status).toBe(200)
+    const content = JSON.parse(res.body[0].content)
+    expect(content.images).toEqual([])
+    // No new presignRead calls
+    expect(vi.mocked(mockStorage.presignRead).mock.calls.length).toBe(callCountBefore)
   })
 
   it('GET /albums/nonexistent/pages returns 404', async () => {
@@ -145,12 +234,14 @@ describe('Album API', () => {
     expect(res.status).toBe(404)
   })
 
-  it('POST /albums/:id/pages creates page', async () => {
+  // --- AC1: page writes use media:// refs and are admin-only ---
+
+  it('POST /albums/:id/pages creates page with media refs', async () => {
     const album = await prisma.album.create({ data: { year: 2024 } })
     const res = await request(app.getHttpServer())
       .post(`/api/albums/${album.id}/pages`)
       .set('Authorization', `Bearer ${adminToken}`)
-      .send({ templateId: 'single', content: { images: ['url.jpg'] }, order: 1 })
+      .send({ templateId: 'single', content: { images: ['media://photos/album/img.webp'] }, order: 1 })
     expect(res.status).toBe(201)
     expect(res.body.templateId).toBe('single')
     expect(res.body.order).toBe(1)
@@ -169,19 +260,19 @@ describe('Album API', () => {
     const res = await request(app.getHttpServer())
       .post('/api/albums/nonexistent/pages')
       .set('Authorization', `Bearer ${adminToken}`)
-      .send({ templateId: 'single', content: { images: ['x.jpg'] }, order: 1 })
+      .send({ templateId: 'single', content: { images: ['media://photos/album/x.webp'] }, order: 1 })
     expect(res.status).toBe(404)
   })
 
   it('PUT /pages/:id updates content', async () => {
     const album = await prisma.album.create({ data: { year: 2024 } })
     const page = await prisma.page.create({
-      data: { albumId: album.id, order: 1, templateId: 'single', content: '{"images":["old.jpg"]}' },
+      data: { albumId: album.id, order: 1, templateId: 'single', content: '{"images":["media://photos/album/old.webp"]}' },
     })
     const res = await request(app.getHttpServer())
       .put(`/api/pages/${page.id}`)
       .set('Authorization', `Bearer ${adminToken}`)
-      .send({ templateId: 'double-h', content: { images: ['a.jpg', 'b.jpg'] } })
+      .send({ templateId: 'double-h', content: { images: ['media://photos/album/a.webp', 'media://photos/album/b.webp'] } })
     expect(res.status).toBe(200)
     expect(res.body.templateId).toBe('double-h')
   })
@@ -190,7 +281,7 @@ describe('Album API', () => {
     const res = await request(app.getHttpServer())
       .put('/api/pages/nonexistent')
       .set('Authorization', `Bearer ${adminToken}`)
-      .send({ templateId: 'single', content: { images: ['x.jpg'] } })
+      .send({ templateId: 'single', content: { images: ['media://photos/album/x.webp'] } })
     expect(res.status).toBe(404)
   })
 

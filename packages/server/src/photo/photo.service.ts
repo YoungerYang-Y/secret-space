@@ -2,14 +2,18 @@ import { Injectable, Inject, NotFoundException, BadRequestException } from '@nes
 import { PrismaService } from '../prisma/prisma.service'
 import { MEDIA_STORAGE } from '../media/media-storage'
 import type { MediaStorage } from '../media/media-storage'
+import { MediaReferenceService } from '../media/media-reference.service'
 import { ProvinceService } from '../province/province.service'
 import { extname } from 'path'
+
+const PHOTO_PREFIXES = ['photos/']
 
 @Injectable()
 export class PhotoService {
   constructor(
     private prisma: PrismaService,
     @Inject(MEDIA_STORAGE) private storage: MediaStorage,
+    private mediaRef: MediaReferenceService,
     private provinceService: ProvinceService,
   ) {}
 
@@ -22,9 +26,19 @@ export class PhotoService {
     return this.storage.presignPhotoUpload(provinceCode, ext as any, contentType as any)
   }
 
-  async create(data: { provinceCode: string; url: string; key: string; annotation?: string; order: number }) {
+  async create(data: { provinceCode: string; mediaRef: string; annotation?: string; order: number }) {
     await this.provinceService.findByCode(data.provinceCode)
-    const photo = await this.prisma.photo.create({ data })
+    const ref = this.mediaRef.fromMediaRef(data.mediaRef, PHOTO_PREFIXES)
+    const logicalKey = this.mediaRef.toLogicalKey(ref, PHOTO_PREFIXES)
+    const photo = await this.prisma.photo.create({
+      data: {
+        provinceCode: data.provinceCode,
+        url: ref,
+        key: logicalKey,
+        annotation: data.annotation,
+        order: data.order,
+      },
+    })
     return { id: photo.id, url: photo.url, annotation: photo.annotation, order: photo.order }
   }
 

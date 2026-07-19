@@ -1,4 +1,4 @@
-import { IsInt, IsOptional, IsString, IsIn, IsArray, IsUrl, ValidateNested, ArrayMaxSize, IsNotEmpty, Matches } from 'class-validator'
+import { IsInt, IsOptional, IsString, IsIn, IsArray, ValidateNested, ArrayMaxSize, IsNotEmpty, Matches } from 'class-validator'
 import { Type } from 'class-transformer'
 
 export class CreateAlbumDto {
@@ -10,8 +10,9 @@ export class CreateAlbumDto {
   title?: string
 
   @IsOptional()
-  @IsUrl({ require_tld: false })
-  coverUrl?: string
+  @IsString()
+  @Matches(/^media:\/\//, { message: 'coverRef must start with media://' })
+  coverRef?: string
 }
 
 export class UpdateAlbumDto {
@@ -24,8 +25,9 @@ export class UpdateAlbumDto {
   title?: string
 
   @IsOptional()
-  @IsUrl({ require_tld: false })
-  coverUrl?: string
+  @IsString()
+  @Matches(/^media:\/\//, { message: 'coverRef must start with media://' })
+  coverRef?: string
 }
 
 export const VALID_TEMPLATES = ['single', 'double-h', 'double-v', 'triple', 'photo-text'] as const
