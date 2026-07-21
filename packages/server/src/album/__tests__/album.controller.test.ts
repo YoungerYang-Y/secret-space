@@ -3,6 +3,7 @@ import request from 'supertest'
 import * as jwt from 'jsonwebtoken'
 import { JWT_SECRET } from '../../auth/auth.service'
 import { PrismaService } from '../../prisma/prisma.service'
+import { MediaDeletionService } from '../../media/media-deletion.service'
 import { createTestApp } from '../../__tests__/test-utils'
 import type { MediaStorage } from '../../media/media-storage'
 
@@ -14,12 +15,14 @@ describe('Album API', () => {
   let app: INestApplication
   let prisma: PrismaService
   let mockStorage: MediaStorage
+  let deletionService: MediaDeletionService
 
   beforeAll(async () => {
     const { app: testApp, module, mockStorage: ms } = await createTestApp()
     app = testApp
     prisma = module.get(PrismaService)
     mockStorage = ms
+    deletionService = module.get(MediaDeletionService)
   })
 
   afterAll(() => app.close())
@@ -337,5 +340,108 @@ describe('Album API', () => {
       .set('Authorization', `Bearer ${adminToken}`)
       .send({ pageIds: [p2.id] })
     expect(res.status).toBe(400)
+  })
+
+  // --- DR-002: 删除闭环 ---
+
+  describe('删除闭环', () => {
+    beforeEach(async () => {
+      await prisma.mediaDeletionTask.deleteMany()
+      vi.mocked(mockStorage.delete).mockReset()
+      vi.mocked(mockStorage.delete).mockResolvedValue(undefined)
+    })
+
+    it('删除相册：封面与全部页面图片登记任务，存储正常时全部 done', async () => {
+      const album = await prisma.album.create({
+        data: { year: 2031, coverUrl: 'media://photos/album/cover-2031.webp' },
+      })
+      await prisma.page.create({
+        data: {
+          albumId: album.id,
+          order: 1,
+          templateId: 'double-h',
+          content: JSON.stringify({ images: ['media://photos/album/p1a.webp', 'media://photos/album/p1b.webp'] }),
+        },
+      })
+      await prisma.page.create({
+        data: {
+          albumId: album.id,
+          order: 2,
+          templateId: 'single',
+          content: JSON.stringify({ images: ['media://photos/album/p2.webp'] }),
+        },
+      })
+
+      const res = await request(app.getHttpServer())
+        .delete(`/api/albums/${album.id}`)
+        .set('Authorization', `Bearer ${adminToken}`)
+      expect(res.status).toBe(204)
+
+      const tasks = await prisma.mediaDeletionTask.findMany({ orderBy: { key: 'asc' } })
+      expect(tasks.map((t) => t.key)).toEqual([
+        'photos/album/cover-2031.webp',
+        'photos/album/p1a.webp',
+        'photos/album/p1b.webp',
+        'photos/album/p2.webp',
+      ])
+      for (const t of tasks) {
+        expect(t.status).toBe('done')
+        expect(t.doneAt).not.toBeNull()
+      }
+      expect(vi.mocked(mockStorage.delete).mock.calls.map((c) => c[0]).sort()).toEqual([
+        'photos/album/cover-2031.webp',
+        'photos/album/p1a.webp',
+        'photos/album/p1b.webp',
+        'photos/album/p2.webp',
+      ])
+    })
+
+    it('删除相册：存储故障仍 204，任务 pending 含 lastError，恢复后重试转 done', async () => {
+      const album = await prisma.album.create({
+        data: { year: 2032, coverUrl: 'media://photos/album/cover-2032.webp' },
+      })
+      vi.mocked(mockStorage.delete).mockRejectedValueOnce(new Error('R2 unavailable'))
+
+      const res = await request(app.getHttpServer())
+        .delete(`/api/albums/${album.id}`)
+        .set('Authorization', `Bearer ${adminToken}`)
+      expect(res.status).toBe(204)
+      expect(await prisma.album.findUnique({ where: { id: album.id } })).toBeNull()
+
+      let task = await prisma.mediaDeletionTask.findFirst({ where: { key: 'photos/album/cover-2032.webp' } })
+      expect(task?.status).toBe('pending')
+      expect(task?.attempts).toBe(1)
+      expect(task?.lastError).toContain('R2 unavailable')
+
+      await prisma.mediaDeletionTask.update({
+        where: { id: task!.id },
+        data: { nextAttemptAt: new Date(Date.now() - 1000) },
+      })
+      const summary = await deletionService.runDueDeletions()
+      expect(summary.failed).toBe(0)
+      task = await prisma.mediaDeletionTask.findFirst({ where: { key: 'photos/album/cover-2032.webp' } })
+      expect(task?.status).toBe('done')
+    })
+
+    it('删除单页：登记该页图片任务（回归：页面删除不再遗留孤儿对象）', async () => {
+      const album = await prisma.album.create({ data: { year: 2033 } })
+      const page = await prisma.page.create({
+        data: {
+          albumId: album.id,
+          order: 1,
+          templateId: 'double-h',
+          content: JSON.stringify({ images: ['media://photos/album/pg-a.webp', 'media://photos/album/pg-b.webp'] }),
+        },
+      })
+
+      const res = await request(app.getHttpServer())
+        .delete(`/api/pages/${page.id}`)
+        .set('Authorization', `Bearer ${adminToken}`)
+      expect(res.status).toBe(204)
+
+      const tasks = await prisma.mediaDeletionTask.findMany({ orderBy: { key: 'asc' } })
+      expect(tasks.map((t) => t.key)).toEqual(['photos/album/pg-a.webp', 'photos/album/pg-b.webp'])
+      for (const t of tasks) expect(t.status).toBe('done')
+    })
   })
 })
