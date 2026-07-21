@@ -124,6 +124,20 @@
   - 删除闭环（失败持久化重试、可观测记录）按范围切分不在本项，由 DR-002 承接。
 - **最终状态变化**：DR-001 `queued` → `verified`。下一待启动项 DR-002，启动前须先按规则在 tracker 标记 `in-progress`。
 
+## 2026-07-21：DR-002 启动与删除链路基线
+
+- **追踪 ID**：DR-002
+- **开始状态**：`queued` → `in-progress`。当前唯一 active 条目（DR-001 已于今日关闭）。
+- **基线证据**：2026-07-21 WSL 内 `pnpm test` 退出码 0（Server 141/141、Admin 11/11、Client 36/36、Shared 1/1）；`pnpm --filter @secret-space/server build` 退出码 0。分支 HEAD `ebd94f6`。
+- **现状删除链路分析（代码证据）**：
+  - `PhotoService.delete`：先 `storage.delete(photo.key)` 后删 DB；存储失败抛错导致 500，DB 记录保留，但存储故障期间管理员无法删除，且失败无任何持久化记录。
+  - `AlbumService.delete`：先删 DB 再 `Promise.allSettled` best-effort 删对象；失败仅 `console.error`，key 列表随 DB 删除丢失，失败对象永久孤儿。
+  - `AlbumService.deletePage`：只删 DB 记录，未触碰存储，页面图片必然成为孤儿对象。
+  - 删除时 key 由运行时从 `media://` 引用或 legacy URL 反解析（`extractKey` 可返回 `null`）；Photo 有持久化 `key` 列，Album/Page 无。
+  - 无任何持久化删除任务、重试机制或可观测失败记录；`r2-media-storage.ts` 注释将未确认上传的孤儿对象清理划归本项。
+- **范围确认**：按完成标准与审查建议（稳定 storageKey + 持久化删除任务，不从公开 URL 反解析 key），先输出 Spec 待用户确认，再进入 Design/Plan 与测试先行实现。不扩张范围：相册模板不变量归 DR-005，管理员会话归 DR-003。
+- **状态变化**：`queued` → `in-progress`。
+
 ## 记录规范
 
 后续每次实施追加一个以日期和追踪 ID 命名的小节，并按以下顺序记录：
