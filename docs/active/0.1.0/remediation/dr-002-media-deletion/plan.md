@@ -54,19 +54,19 @@ T2/T3/T4 之间无相互依赖，可串行执行；T5 依赖前三者全部完�
 - [ ] AC4: `lastError` 不包含任何 URL；迁移只增表不触碰既有数据；`pnpm --filter @secret-space/server build` 退出 0。
 
 **Execution:**
-- **Status:** pending
-- **Commit SHA:** null
-- **Attempts:** 0
+- **Status:** done
+- **Commit SHA:** 86f8623
+- **Attempts:** 1
 - **Blocked Reason:** null
-- **Red Result:** null
-- **Verify Result:** null
-- **AC Result:** null
+- **Red Result:** FAIL 符合预期 — `MediaDeletionService`/`MediaDeletionTask` 不存在，目标套件无法加载（EXIT=1，其余 141 用例不受影响）
+- **Verify Result:** PASS — Server 15 文件 148/148，`pnpm --filter @secret-space/server build` 退出 0（2026-07-21 WSL）
+- **AC Result:** 4/4 通过（注：实现中改用逐条 `create` 替代 `createMany`，因 Prisma 5.0 SQLite 不支持后者）
 
 **Task Completion Gate:**
-- [ ] Red Result exists and passed
-- [ ] Verify Result exists and passed
-- [ ] AC Result: 4/4 passed
-- [ ] Commit SHA belongs to this task only
+- [x] Red Result exists and passed
+- [x] Verify Result exists and passed
+- [x] AC Result: 4/4 passed
+- [x] Commit SHA belongs to this task only
 
 **Step 1: Red**
 
@@ -115,7 +115,7 @@ Run: 同 Red 命令。Expected: **PASS**。
 - [ ] AC4: `photo.service.ts` 不再直接调用 `storage.delete`。
 
 **Execution:**
-- **Status:** pending | **Commit SHA:** null | **Attempts:** 0 | **Blocked Reason:** null | **Red Result:** null | **Verify Result:** null | **AC Result:** null
+- **Status:** done | **Commit SHA:** 32480be | **Attempts:** 1 | **Blocked Reason:** null | **Red Result:** FAIL 符合预期 — 存储故障路径返回 500 且无持久化任务（2 个新用例失败，148 通过） | **Verify Result:** PASS — Server 15 文件 150/150（2026-07-21 WSL） | **AC Result:** 4/4 通过
 
 **Task Completion Gate:**
 - [ ] Red Result exists and passed
@@ -171,7 +171,7 @@ Run: 同 Red 命令。Expected: **PASS**。
 - [ ] AC4: 服务内不再存在 `extractKey` / `Promise.allSettled` 清理残迹；`album-flow.e2e` 全链路通过。
 
 **Execution:**
-- **Status:** pending | **Commit SHA:** null | **Attempts:** 0 | **Blocked Reason:** null | **Red Result:** null | **Verify Result:** null | **AC Result:** null
+- **Status:** done | **Commit SHA:** d783721 | **Attempts:** 1 | **Blocked Reason:** null | **Red Result:** FAIL 符合预期 — 无持久化任务记录（3 个新用例失败，150 通过） | **Verify Result:** PASS — Server 15 文件 153/153，extractKey/Promise.allSettled 残迹已移除（2026-07-21 WSL） | **AC Result:** 4/4 通过
 
 **Task Completion Gate:**
 - [ ] Red Result exists and passed
@@ -234,7 +234,7 @@ Run: `pnpm --filter @secret-space/server test -- src/album/__tests__/album.contr
 - [ ] AC4: 受影响既有测试全部更新并通过；全仓 server 测试退出码 0。
 
 **Execution:**
-- **Status:** pending | **Commit SHA:** null | **Attempts:** 0 | **Blocked Reason:** null | **Red Result:** null | **Verify Result:** null | **AC Result:** null
+- **Status:** done | **Commit SHA:** dccf2a0 | **Attempts:** 1 | **Blocked Reason:** null | **Red Result:** FAIL 符合预期 — 端点不存在、tmp staging 行为未实现（19 用例失败，145 通过） | **Verify Result:** PASS — Server 16 文件 164/164，server build 退出 0（2026-07-21 WSL） | **AC Result:** 4/4 通过
 
 **Task Completion Gate:**
 - [ ] Red Result exists and passed
@@ -286,12 +286,12 @@ Run: `pnpm --filter @secret-space/server test`（前缀同 Red）。Expected: **
 - [ ] AC3: DR-002 完成标准逐项可判定通过。
 
 **Execution:**
-- **Status:** pending | **Commit SHA:** null | **Attempts:** 0 | **Blocked Reason:** null | **Red Result:** null | **Verify Result:** null | **AC Result:** null
+- **Status:** done | **Commit SHA:** 见本任务收口提交（git log 顶部） | **Attempts:** 1 | **Blocked Reason:** null | **Red Result:** 不适用（文档与验收收口任务） | **Verify Result:** PASS — WSL 全仓 `pnpm test` 退出 0（Server 164/164、Admin 11/11、Client 36/36、Shared 1/1，合计 212/212）；`pnpm build` 退出 0（2026-07-21） | **AC Result:** 3/3 通过
 
 **Task Completion Gate:**
-- [ ] Verify Result exists and passed
-- [ ] AC Result: 3/3 passed
-- [ ] Commit SHA belongs to this task only
+- [x] Verify Result exists and passed
+- [x] AC Result: 3/3 passed
+- [x] Commit SHA belongs to this task only
 
 **Step 4: Commit**
 

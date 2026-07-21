@@ -87,6 +87,43 @@ curl -s -X OPTIONS \
 
 ---
 
+## 3A. R2 Lifecycle 规则（DR-002：未确认上传自动清除）
+
+> 自 DR-002 起，上传先落到 `tmp/` staging 前缀，confirm 通过后才晋级到正式 key。
+> 未取得确认（放弃上传、校验失败、超大对象）的 staging 对象由此规则自动清除。
+
+- [ ] 在 Cloudflare Dashboard 为 R2 Bucket 配置生命周期规则（Settings → Lifecycle Rules → Add rule）：
+  - **Rule name**：`expire-unconfirmed-staging`
+  - **Prefix**：`tmp/`
+  - **Action**：Expire objects after **1 day**（86400 秒）
+
+等效 API 配置（S3 PutBucketLifecycleConfiguration）：
+
+```json
+{
+  "Rules": [
+    {
+      "ID": "expire-unconfirmed-staging",
+      "Status": "Enabled",
+      "Filter": { "Prefix": "tmp/" },
+      "Expiration": { "Days": 1 }
+    }
+  ]
+}
+```
+
+- [ ] 验证规则已生效（返回的规则中包含 `tmp/` 前缀）：
+
+```bash
+aws s3api get-bucket-lifecycle-configuration --bucket <R2_BUCKET> \
+  --endpoint-url <R2_API_ENDPOINT>
+# 预期：Rules 中含 Prefix=tmp/ 且 Expiration.Days=1
+```
+
+- [ ] 确认正式路径不受影响：`photos/` 前缀不得被任何 lifecycle 规则覆盖。
+
+---
+
 ## 4. Migration dry-run（零失败门槛）
 
 - [ ] 确认环境变量 `R2_LEGACY_PUBLIC_URL` 已设置为旧公共 URL 前缀。
@@ -211,6 +248,7 @@ done
 |--------|----------|----------|
 | R2 私有访问 | `curl` 匿名直连 | 非 2xx |
 | CORS OPTIONS | `curl` 预检请求 | 精确 Origin 匹配 |
+| tmp/ lifecycle 规则 | `get-bucket-lifecycle-configuration` | `tmp/` 前缀 1 天过期，`photos/` 不受影响 |
 | dry-run 零失败 | 迁移脚本输出 | 0 failures |
 | 数据库引用格式 | SQLite 查询 | 全部为 `media://` |
 | 匿名 API 访问 | E2E 测试 | 401，无媒体 URL |

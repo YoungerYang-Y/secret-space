@@ -138,6 +138,31 @@
 - **范围确认**：按完成标准与审查建议（稳定 storageKey + 持久化删除任务，不从公开 URL 反解析 key），先输出 Spec 待用户确认，再进入 Design/Plan 与测试先行实现。不扩张范围：相册模板不变量归 DR-005，管理员会话归 DR-003。
 - **状态变化**：`queued` → `in-progress`。
 
+## 2026-07-21：DR-002 实施完成并关闭
+
+- **追踪 ID**：DR-002
+- **开始状态**：`in-progress`（基线见上条：全仓 189/189 绿、Server 构建退出 0）。
+- **过程**：用户确认 Spec 后产出 Design 与 Plan（T1～T5），按 Red → Green → Verify → Commit 逐任务执行。文档提交 `d6c4bae`。
+- **任务执行记录（每次 Red 均为 fresh 失败证据）**：
+  - **T1 删除任务模型与服务**（`86f8623`）：Red — 服务/模型不存在，目标套件无法加载（EXIT=1）；Green — 新增 `MediaDeletionTask` 模型与迁移、`MediaDeletionService`（enqueue/退避/清扫/启动钩子）；Verify — Server 148/148、server build 退出 0。实现注记：Prisma 5.0 SQLite 不支持 `createMany`，改为事务内逐条 `create`。
+  - **T2 Photo 删除接入**（`32480be`）：Red — 存储故障路径返回 500 且无持久化任务（2 用例失败）；Green — 事务内 `enqueueMany + photo.delete`，提交后 `runDueDeletions`，语义变为存储故障仍 204；Verify — Server 150/150。
+  - **T3 Album/Page 删除接入**（`d783721`）：Red — 无持久化任务记录（3 用例失败）；Green — 封面与各页图片从持久化 `media://` 引用收集 key，事务登记后删除；`deletePage` 首次纳入对象清理；移除 `Promise.allSettled + console` 清理与 `extractKey` URL 反解析；Verify — Server 153/153。
+  - **T4 上传 staging 与管理端接口**（`dccf2a0`）：Red — 端点不存在、tmp 行为未实现（19 用例失败）；Green — presign 落 `tmp/photos/...`，confirm 校验后 `CopyObject → photos/... → 删 tmp` 并返回最终 `mediaRef`，`/media/confirm` 只接受 `tmp/photos/` key 且 readUrl 针对最终 key；新增 `GET /media/deletion-tasks`（含 failing 派生状态）与 `POST /media/deletion-tasks/retry`（匿名 401、visitor/owner 403）；Verify — Server 164/164、server build 退出 0。
+  - **T5 部署清单与验收**（本提交）：`deployment-checklist.md` 追加 3A 节（`tmp/` 前缀 1 天过期 lifecycle 规则 + 验证命令 + 验收表行）。
+- **完成标准逐项核对**：
+  1. 媒体保存稳定 `storageKey` ✅ — Photo 持久化 `key` 列（迁移已回填），Album/Page 由持久化 `media://` 引用承载；删除任务 key 只来自这两类持久化来源，不从公开 URL 反解析。
+  2. 删除失败可持久化重试 ✅ — `MediaDeletionTask` 表持久化 key/attempts/lastError/nextAttemptAt；重试入口三处：删除提交后立即尝试、应用启动清扫、管理员 `POST /media/deletion-tasks/retry`；失败路径测试覆盖（存储故障 → pending → 恢复 → done）。
+  3. 失败有可观测记录 ✅ — 任务表即持久化记录，管理员可 `GET /media/deletion-tasks?status=pending|done|failing` 查询；`lastError` 剥除 URL。
+  4. 正常与失败路径测试通过 ✅ — 覆盖 enqueue 去重/非法 key、退避序列、到期过滤、幂等、重启不丢、三条业务链路的成功与故障路径、管理端接口鉴权矩阵。
+- **新鲜验证证据（WSL Ubuntu-24.04，worktree 根目录）**：
+  - `COREPACK_HOME=/tmp/secret-space-corepack TMPDIR=/tmp TMP=/tmp TEMP=/tmp pnpm test` 退出码 0；Server 164/164、Admin 11/11、Client 36/36、Shared 1/1，合计 212/212。
+  - `pnpm build` 退出码 0（shared、server、client、admin 全部构建成功）。
+- **剩余风险与交接**：
+  - 分支未合并回 `main`；生产部署需按 `deployment-checklist.md` 追加执行 3A 节（tmp/ lifecycle 规则），否则未确认上传不会被自动清除（不影响正确性，只影响桶内整洁）。
+  - 重试无进程内定时器，依赖启动清扫与管理员触发；媒体量显著增长后可另立条目评估定时清扫。
+  - `done` 任务记录保留作审计轨迹，清理策略留待后续需要时另立条目。
+- **最终状态变化**：DR-002 `in-progress` → `verified`。当前无 active 条目；下一待启动项 DR-003 或 DR-005。
+
 ## 记录规范
 
 后续每次实施追加一个以日期和追踪 ID 命名的小节，并按以下顺序记录：
