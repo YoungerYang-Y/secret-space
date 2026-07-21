@@ -96,6 +96,34 @@
   - AC3 ✅：全仓构建通过，`pnpm test` 189/189 通过。
 - **状态变化**：T6 `pending` → `done`。
 
+## 2026-07-19：DR-001 T6 后审查修正（补记）
+
+- **追踪 ID**：DR-001
+- **背景**：T6 验收通过后对方案实现做了一轮复审，发现 7 项问题并追加一轮收窄修正；本条目为补记，提交已在当日完成。
+- **实际提交**：
+  - `f599163 fix(media): 修复审查发现的 7 项问题`：移除遗留 `r2` 模块与 `r2.service`（统一由 `media` 模块承接）；收紧 `media-reference.service` 与 `media.controller` 边界；`province.service` 读取路径修正；部署清单与 Admin 测试相应修正。
+  - `11e7b6a fix(media): 收窄上传类型校验 + 补充环境变量文档 + 修正测试 mock`：`album.controller` 与 `photo.service` 上传类型校验收窄；`.env.example` 补充环境变量说明；`PageEditor.test.ts` mock 修正。
+- **验证**：两轮修正均通过定向测试后合入；当日分支末端 `pnpm test` 全绿（次日 2026-07-21 复验证据见下条）。
+- **状态变化**：DR-001 保持 `in-progress`（当时 tracker 状态滞留于 `queued`，由 2026-07-21 条目一并纠正）。
+
+## 2026-07-21：DR-001 复验通过并关闭
+
+- **追踪 ID**：DR-001
+- **开始状态**：`queued`（tracker 状态滞后于实现：T1～T6 及两轮审查修正均已于 2026-07-19 提交在 `codex/dr-001-private-media`，本条按规则补齐状态流转与新鲜证据）。
+- **完成标准逐项核对**：
+  1. 角色×资源×操作权限矩阵已记录：`dr-001-access-policy.md`（目标权限矩阵，方案 A 私有桶 + 短期签名读取）。✅
+  2. 内容读取 API 与矩阵一致：匿名读取省份照片/相册列表返回 401 且无媒体 URL；visitor/owner/admin 读取返回 300 秒签名 URL；写操作仅 admin；由 `app.e2e.test.ts`、`album-flow.e2e.test.ts`、各控制器测试断言。✅
+  3. 鉴权集成测试覆盖匿名、访客、所有者、管理员：匿名（app.e2e 401）、visitor（app.e2e / province.controller）、owner（album-flow 越权拒绝、album.controller、province.controller、roles.guard）、admin（全套写路径）。✅
+  4. 对象存储读取策略明确：私有桶禁止匿名读取、读取签名 300 秒 / 上传签名 600 秒、精确 CORS 与启动校验、持久化仅 `media://<logical-key>`；见 `dr-001-private-media/spec.md` 约束与 `deployment-checklist.md`。✅
+- **新鲜验证证据（WSL Ubuntu-24.04 内执行，worktree 根目录）**：
+  - `COREPACK_HOME=/tmp/secret-space-corepack TMPDIR=/tmp TMP=/tmp TEMP=/tmp pnpm test` 退出码 0；Server 141/141、Admin 11/11、Client 36/36、Shared 1/1，合计 189/189 通过。
+  - `pnpm --filter @secret-space/server build` 退出码 0。
+- **剩余风险与交接**：
+  - 分支 `codex/dr-001-private-media`（9 个提交）尚未合并回 `main`；合并后生产侧仍需按 `deployment-checklist.md` 执行：备份、禁用 R2 公开访问、精确 CORS、历史引用 dry-run 零失败后 apply、回滚预案。
+  - 已签发读取 URL 的最大既有访问窗口为 300 秒（令牌撤销后），属方案内已接受约束。
+  - 删除闭环（失败持久化重试、可观测记录）按范围切分不在本项，由 DR-002 承接。
+- **最终状态变化**：DR-001 `queued` → `verified`。下一待启动项 DR-002，启动前须先按规则在 tracker 标记 `in-progress`。
+
 ## 记录规范
 
 后续每次实施追加一个以日期和追踪 ID 命名的小节，并按以下顺序记录：
