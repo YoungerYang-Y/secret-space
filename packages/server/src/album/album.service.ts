@@ -1,8 +1,9 @@
-import { Injectable, Inject, NotFoundException, ConflictException, BadRequestException } from '@nestjs/common'
+import { Injectable, Inject, Logger, NotFoundException, ConflictException, BadRequestException } from '@nestjs/common'
 import { PrismaService } from '../prisma/prisma.service'
 import { MEDIA_STORAGE } from '../media/media-storage'
 import type { MediaStorage } from '../media/media-storage'
 import { MediaReferenceService } from '../media/media-reference.service'
+import { MediaDeletionService } from '../media/media-deletion.service'
 import { CreateAlbumDto, UpdateAlbumDto, CreatePageDto, UpdatePageDto, ReorderPagesDto } from './dto/album.dto'
 
 const ALBUM_PREFIXES = ['photos/']
@@ -10,10 +11,13 @@ const MEDIA_PROTOCOL = 'media://'
 
 @Injectable()
 export class AlbumService {
+  private readonly logger = new Logger(AlbumService.name)
+
   constructor(
     private prisma: PrismaService,
     @Inject(MEDIA_STORAGE) private storage: MediaStorage,
     private mediaRef: MediaReferenceService,
+    private deletion: MediaDeletionService,
   ) {}
 
   async findAll() {
@@ -69,34 +73,58 @@ export class AlbumService {
   async delete(id: string) {
     const album = await this.prisma.album.findUnique({ where: { id }, include: { pages: true } })
     if (!album) throw new NotFoundException('Album not found')
+    const keys = this.collectAlbumKeys(album)
+    // 删除任务与业务删除同事务：封面与全部页面图片的对象删除最终一致
+    await this.prisma.$transaction(async (tx) => {
+      await this.deletion.enqueueMany(keys, tx)
+      await tx.album.delete({ where: { id } })
+    })
+    await this.deletion.runDueDeletions()
+  }
 
-    // Extract keys from pages content + cover
+  /** 从持久化引用收集 key：封面 + 各页图片；仅 media:// 引用，其余跳过并 warn。 */
+  private collectAlbumKeys(album: { coverUrl: string | null; pages: { content: string }[] }): string[] {
     const keys: string[] = []
-    for (const page of album.pages) {
-      try {
-        const content = JSON.parse(page.content)
-        for (const url of content.images || []) {
-          const key = this.extractKey(url)
-          if (key) keys.push(key)
-        }
-      } catch { /* ignore parse errors */ }
-    }
     if (album.coverUrl) {
-      const key = this.extractKey(album.coverUrl)
+      const key = this.keyFromRef(album.coverUrl)
       if (key) keys.push(key)
     }
+    for (const page of album.pages) {
+      keys.push(...this.collectPageKeys(page.content))
+    }
+    return keys
+  }
 
-    await this.prisma.album.delete({ where: { id } })
-
-    // Best-effort cleanup
-    if (keys.length) console.log(`Storage cleanup: deleting ${keys.length} keys for album ${id}`, keys)
-    await Promise.allSettled(keys.map(async (key) => {
-      try {
-        await this.storage.delete(key)
-      } catch (e) {
-        console.error(`Storage cleanup failed for key: ${key}`, e)
+  private collectPageKeys(contentStr: string): string[] {
+    try {
+      const content = JSON.parse(contentStr)
+      const images: unknown[] = Array.isArray(content.images) ? content.images : []
+      const keys: string[] = []
+      for (const img of images) {
+        if (typeof img === 'string') {
+          const key = this.keyFromRef(img)
+          if (key) keys.push(key)
+        }
       }
-    }))
+      return keys
+    } catch {
+      this.logger.warn('页面内容解析失败，跳过其图片删除登记')
+      return []
+    }
+  }
+
+  /** key 只来自持久化的 media:// 引用；不从公开 URL 反解析。 */
+  private keyFromRef(ref: string): string | null {
+    if (!ref.startsWith(MEDIA_PROTOCOL)) {
+      this.logger.warn('跳过非 media:// 引用的删除登记')
+      return null
+    }
+    try {
+      return this.mediaRef.toLogicalKey(ref as `media://${string}`, ALBUM_PREFIXES)
+    } catch {
+      this.logger.warn('无效 media:// 引用，跳过删除登记')
+      return null
+    }
   }
 
   async createPage(albumId: string, dto: CreatePageDto) {
@@ -124,7 +152,13 @@ export class AlbumService {
   async deletePage(pageId: string) {
     const page = await this.prisma.page.findUnique({ where: { id: pageId } })
     if (!page) throw new NotFoundException('Page not found')
-    await this.prisma.page.delete({ where: { id: pageId } })
+    const keys = this.collectPageKeys(page.content)
+    // 页面删除同样登记其图片的删除任务，不再遗留孤儿对象
+    await this.prisma.$transaction(async (tx) => {
+      await this.deletion.enqueueMany(keys, tx)
+      await tx.page.delete({ where: { id: pageId } })
+    })
+    await this.deletion.runDueDeletions()
   }
 
   async reorderPages(albumId: string, dto: ReorderPagesDto) {
@@ -196,15 +230,4 @@ export class AlbumService {
     }
   }
 
-  private extractKey(url: string): string | null {
-    if (url.startsWith(MEDIA_PROTOCOL)) {
-      return url.slice(MEDIA_PROTOCOL.length)
-    }
-    try {
-      const u = new URL(url)
-      return u.pathname.startsWith('/') ? u.pathname.slice(1) : u.pathname
-    } catch {
-      return null
-    }
-  }
 }
