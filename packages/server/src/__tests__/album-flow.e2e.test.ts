@@ -46,7 +46,7 @@ describe('Album Lifecycle (E2E)', () => {
     const confirmRes = await request(app.getHttpServer())
       .post('/api/media/confirm')
       .set(headers)
-      .send({ key: 'photos/album/cover-2025.webp' })
+      .send({ key: 'tmp/photos/album/cover-2025.webp' })
     expect(confirmRes.status).toBe(200)
     expect(confirmRes.body.mediaRef).toBe('media://photos/album/cover-2025.webp')
     expect(confirmRes.body.readUrl).toMatch(/^https:\/\/signed\.example\.com\//)
@@ -196,7 +196,7 @@ describe('Album Lifecycle (E2E)', () => {
     const confirmRes = await request(app.getHttpServer())
       .post('/api/media/confirm')
       .set(headers)
-      .send({ key: 'photos/album/x.webp' })
+      .send({ key: 'tmp/photos/album/x.webp' })
     expect(confirmRes.status).toBe(403)
   })
 

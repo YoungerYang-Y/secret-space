@@ -36,7 +36,7 @@ describe('Photo Admin API', () => {
     expect(res.body).toHaveProperty('uploadUrl')
     expect(res.body).toHaveProperty('key')
     expect(res.body).toHaveProperty('mediaRef')
-    expect(res.body.key).toMatch(/^photos\/hunan\//)
+    expect(res.body.key).toMatch(/^tmp\/photos\/hunan\//)
     expect(res.body.mediaRef).toMatch(/^media:\/\/photos\/hunan\//)
   })
 
@@ -62,7 +62,7 @@ describe('Photo Admin API', () => {
     const res = await request(app.getHttpServer())
       .post('/api/media/confirm')
       .set('Authorization', `Bearer ${adminToken}`)
-      .send({ key: 'photos/hunan/test-uuid.webp' })
+      .send({ key: 'tmp/photos/hunan/test-uuid.webp' })
     expect(res.status).toBe(200)
     expect(res.body.mediaRef).toBe('media://photos/hunan/test-uuid.webp')
     expect(res.body.readUrl).toMatch(/^https:\/\/signed\.example\.com\//)
@@ -73,14 +73,14 @@ describe('Photo Admin API', () => {
     const res = await request(app.getHttpServer())
       .post('/api/media/confirm')
       .set('Authorization', `Bearer ${visitorToken}`)
-      .send({ key: 'photos/hunan/test-uuid.webp' })
+      .send({ key: 'tmp/photos/hunan/test-uuid.webp' })
     expect(res.status).toBe(403)
   })
 
   it('POST /media/confirm 匿名得到 401', async () => {
     const res = await request(app.getHttpServer())
       .post('/api/media/confirm')
-      .send({ key: 'photos/hunan/test-uuid.webp' })
+      .send({ key: 'tmp/photos/hunan/test-uuid.webp' })
     expect(res.status).toBe(401)
   })
 
@@ -91,7 +91,7 @@ describe('Photo Admin API', () => {
     const res = await request(app.getHttpServer())
       .post('/api/media/confirm')
       .set('Authorization', `Bearer ${adminToken}`)
-      .send({ key: 'photos/hunan/nonexistent.webp' })
+      .send({ key: 'tmp/photos/hunan/nonexistent.webp' })
     expect(res.status).toBe(422)
   })
 
