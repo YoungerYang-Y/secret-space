@@ -4,6 +4,7 @@ import {
   GetObjectCommand,
   DeleteObjectCommand,
   HeadObjectCommand,
+  CopyObjectCommand,
 } from '@aws-sdk/client-s3'
 import { getSignedUrl } from '@aws-sdk/s3-request-presigner'
 import { v4 as uuid } from 'uuid'
@@ -14,6 +15,7 @@ const MAX_SIZE_BYTES = 10 * 1024 * 1024 // 10 MiB
 const UPLOAD_EXPIRY_SECONDS = 600
 const READ_EXPIRY_SECONDS = 300
 const MAGIC_READ_BYTES = 4096
+const STAGING_PREFIX = 'tmp/'
 
 type MagicCheck = {
   readonly contentType: ImageContentType
@@ -78,16 +80,18 @@ export class R2MediaStorage implements MediaStorage {
     ext: ImageExtension,
     contentType: ImageContentType,
   ): Promise<UploadGrant> {
-    const key = `photos/${provinceCode}/${uuid()}${ext}`
-    return this.createUploadGrant(key, contentType)
+    // 上传先落到 tmp/ staging 前缀，confirm 通过后才晋级到正式 key；
+    // 未确认的孤儿对象由桶级 lifecycle 规则自动清除（DR-002）
+    const finalKey = `photos/${provinceCode}/${uuid()}${ext}`
+    return this.createUploadGrant(`${STAGING_PREFIX}${finalKey}`, finalKey, contentType)
   }
 
   async presignAlbumUpload(
     ext: ImageExtension,
     contentType: ImageContentType,
   ): Promise<UploadGrant> {
-    const key = `photos/album/${uuid()}${ext}`
-    return this.createUploadGrant(key, contentType)
+    const finalKey = `photos/album/${uuid()}${ext}`
+    return this.createUploadGrant(`${STAGING_PREFIX}${finalKey}`, finalKey, contentType)
   }
 
   async presignRead(key: string): Promise<string> {
@@ -95,11 +99,14 @@ export class R2MediaStorage implements MediaStorage {
     return getSignedUrl(this.client, command, { expiresIn: READ_EXPIRY_SECONDS })
   }
 
-  async confirmUpload(key: string): Promise<ConfirmedUpload> {
+  async confirmUpload(stagingKey: string): Promise<ConfirmedUpload> {
+    if (!stagingKey.startsWith(`${STAGING_PREFIX}photos/`) || stagingKey.includes('..')) {
+      throw new ConfirmUploadError('Invalid staging key')
+    }
     let headResult: { ContentLength?: number; ContentType?: string }
     try {
       headResult = await this.client.send(
-        new HeadObjectCommand({ Bucket: this.bucket, Key: key }),
+        new HeadObjectCommand({ Bucket: this.bucket, Key: stagingKey }),
       )
     } catch {
       throw new ConfirmUploadError('Object not found')
@@ -118,7 +125,7 @@ export class R2MediaStorage implements MediaStorage {
     const getResult = await this.client.send(
       new GetObjectCommand({
         Bucket: this.bucket,
-        Key: key,
+        Key: stagingKey,
         Range: `bytes=0-${MAGIC_READ_BYTES - 1}`,
       }),
     )
@@ -130,8 +137,25 @@ export class R2MediaStorage implements MediaStorage {
       throw new ConfirmUploadError('Magic bytes do not match declared content type')
     }
 
+    // 校验通过：晋级 staging 对象到最终 key，再删除 staging 对象
+    const finalKey = stagingKey.slice(STAGING_PREFIX.length)
+    try {
+      await this.client.send(
+        new CopyObjectCommand({
+          Bucket: this.bucket,
+          Key: finalKey,
+          CopySource: `${this.bucket}/${stagingKey}`,
+        }),
+      )
+      await this.client.send(
+        new DeleteObjectCommand({ Bucket: this.bucket, Key: stagingKey }),
+      )
+    } catch {
+      throw new ConfirmUploadError('Failed to promote staged object')
+    }
+
     return {
-      mediaRef: `media://${key}`,
+      mediaRef: `media://${finalKey}`,
       size,
     }
   }
@@ -143,16 +167,19 @@ export class R2MediaStorage implements MediaStorage {
   /**
    * NOTE: R2/S3 presigned PUT URLs do not support Content-Length-Range conditions.
    * Upload size is enforced at confirm time via HeadObject (10 MiB limit).
-   * This is acceptable because: (a) only admin can presign, (b) unconfirmed
-   * oversized objects are cleaned up by DR-002 lifecycle rules.
+   * Unconfirmed staging objects under tmp/ are cleaned up by the bucket
+   * lifecycle rule (see DR-002 deployment checklist).
+   *
+   * mediaRef 返回的是 confirm 成功后的最终引用；uploadUrl/key 指向 tmp staging。
    */
   private async createUploadGrant(
-    key: string,
+    stagingKey: string,
+    finalKey: string,
     contentType: ImageContentType,
   ): Promise<UploadGrant> {
     const command = new PutObjectCommand({
       Bucket: this.bucket,
-      Key: key,
+      Key: stagingKey,
       ContentType: contentType,
     })
     const uploadUrl = await getSignedUrl(this.client, command, {
@@ -160,8 +187,8 @@ export class R2MediaStorage implements MediaStorage {
     })
     return {
       uploadUrl,
-      key,
-      mediaRef: `media://${key}`,
+      key: stagingKey,
+      mediaRef: `media://${finalKey}`,
     }
   }
 }

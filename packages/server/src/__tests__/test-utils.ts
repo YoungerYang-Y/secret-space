@@ -12,17 +12,18 @@ export const adminToken = jwt.sign({ role: 'admin' }, JWT_SECRET, { expiresIn: '
 export function createMockStorage(): MediaStorage {
   return {
     presignPhotoUpload: vi.fn().mockImplementation(async (provinceCode, ext, contentType) => ({
-      uploadUrl: `https://mock-r2.example.com/upload?key=photos/${provinceCode}/mock-uuid${ext}`,
-      key: `photos/${provinceCode}/mock-uuid${ext}`,
+      uploadUrl: `https://mock-r2.example.com/upload?key=tmp/photos/${provinceCode}/mock-uuid${ext}`,
+      key: `tmp/photos/${provinceCode}/mock-uuid${ext}`,
       mediaRef: `media://photos/${provinceCode}/mock-uuid${ext}`,
     })),
     presignAlbumUpload: vi.fn().mockImplementation(async (ext, contentType) => ({
-      uploadUrl: `https://mock-r2.example.com/upload?key=photos/album/mock-uuid${ext}`,
-      key: `photos/album/mock-uuid${ext}`,
+      uploadUrl: `https://mock-r2.example.com/upload?key=tmp/photos/album/mock-uuid${ext}`,
+      key: `tmp/photos/album/mock-uuid${ext}`,
       mediaRef: `media://photos/album/mock-uuid${ext}`,
     })),
+    // 与 staging 契约一致：输入 tmp/ key，返回去掉 tmp/ 前缀的最终 mediaRef
     confirmUpload: vi.fn().mockImplementation(async (key: string) => ({
-      mediaRef: `media://${key}`,
+      mediaRef: `media://${key.replace(/^tmp\//, '')}`,
       size: 12345,
     })),
     presignRead: vi.fn().mockImplementation(async (key: string) => `https://signed.example.com/${key}?token=abc&expires=300`),
