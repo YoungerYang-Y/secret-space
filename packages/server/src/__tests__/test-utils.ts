@@ -14,12 +14,10 @@ export function createMockStorage(): MediaStorage {
     presignPhotoUpload: vi.fn().mockImplementation(async (provinceCode, ext, contentType) => ({
       uploadUrl: `https://mock-r2.example.com/upload?key=tmp/photos/${provinceCode}/mock-uuid${ext}`,
       key: `tmp/photos/${provinceCode}/mock-uuid${ext}`,
-      mediaRef: `media://photos/${provinceCode}/mock-uuid${ext}`,
     })),
     presignAlbumUpload: vi.fn().mockImplementation(async (ext, contentType) => ({
       uploadUrl: `https://mock-r2.example.com/upload?key=tmp/photos/album/mock-uuid${ext}`,
       key: `tmp/photos/album/mock-uuid${ext}`,
-      mediaRef: `media://photos/album/mock-uuid${ext}`,
     })),
     // 与 staging 契约一致：输入 tmp/ key，返回去掉 tmp/ 前缀的最终 mediaRef
     confirmUpload: vi.fn().mockImplementation(async (key: string) => ({

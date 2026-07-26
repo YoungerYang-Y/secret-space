@@ -47,9 +47,9 @@ describe('R2MediaStorage', () => {
       expect(result.uploadUrl).toBe('https://presigned.example.com/signed')
     })
 
-    it('returns final mediaRef (不含 tmp/) with media:// protocol', async () => {
+    it('does not expose a final mediaRef before the staging object is confirmed', async () => {
       const result = await storage.presignPhotoUpload('hunan', '.webp', 'image/webp')
-      expect(result.mediaRef).toBe('media://photos/hunan/test-uuid-1234.webp')
+      expect(result).not.toHaveProperty('mediaRef')
     })
 
     it('uses 600 second expiry for PUT presign', async () => {
@@ -68,9 +68,9 @@ describe('R2MediaStorage', () => {
       expect(result.key).toBe('tmp/photos/album/test-uuid-1234.jpg')
     })
 
-    it('returns final mediaRef (不含 tmp/) with media:// protocol', async () => {
+    it('does not expose a final mediaRef before the staging object is confirmed', async () => {
       const result = await storage.presignAlbumUpload('.jpg', 'image/jpeg')
-      expect(result.mediaRef).toBe('media://photos/album/test-uuid-1234.jpg')
+      expect(result).not.toHaveProperty('mediaRef')
     })
 
     it('uses 600 second expiry for PUT presign', async () => {
@@ -226,6 +226,21 @@ describe('R2MediaStorage', () => {
       await expect(storage.confirmUpload('tmp/photos/hunan/missing.jpg')).rejects.toThrow(
         'Object not found',
       )
+    })
+
+    it('staging 已删除但最终对象存在时重新校验并恢复确认', async () => {
+      const mockSend = mockClientSend(
+        new Error('NoSuchKey'), // staging HeadObject
+        { ContentLength: 1024, ContentType: 'image/jpeg' }, // final HeadObject
+        { Body: { transformToByteArray: () => Promise.resolve(jpegHead()) } }, // final GetObject
+      )
+      const result = await storage.confirmUpload('tmp/photos/hunan/recover.jpg')
+      expect(result).toEqual({ mediaRef: 'media://photos/hunan/recover.jpg', size: 1024 })
+      expect(mockSend.mock.calls.map((call) => call[0].input.Key)).toEqual([
+        'tmp/photos/hunan/recover.jpg',
+        'photos/hunan/recover.jpg',
+        'photos/hunan/recover.jpg',
+      ])
     })
 
     it('拷贝失败时抛出且不返回 mediaRef/readUrl', async () => {
