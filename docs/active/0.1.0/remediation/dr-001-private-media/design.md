@@ -39,13 +39,13 @@ flowchart LR
     Upload -->|"short-lived PUT URL"| Browser
     Browser -->|"PUT upload URL"| R2
     Browser -->|"admin: confirm key"| Upload
-    Upload -->|"validate bytes, return media reference + preview"| Browser
+    Upload -->|"validate bytes, return one-time receipt + preview"| Browser
 ```
 
 数据流分为两条：
 
 1. 读取：`RolesGuard` 先拒绝匿名或无权角色；业务服务从存储记录取规范引用，`MediaReferenceService` 验证逻辑 key 后交给 `MediaStorage` 签发 GET URL，再返回给浏览器。
-2. 写入：管理员先取得 PUT 签名，上传后必须确认对象。`MediaStorage` 读取对象首段并校验大小、文件头和 key 前缀；只有确认成功才返回 `media://<logical-key>` 与短期预览地址。创建/更新接口只接受该规范引用，不接受签名 URL。
+2. 写入：管理员先取得 PUT 签名，上传后必须确认对象。`MediaStorage` 读取对象首段并校验大小、文件头和 key 前缀；确认控制器将内部 `media://<logical-key>` 换成按资源范围绑定的、一次性 `uploadReceipt` 和短期预览地址。创建/更新接口只消费该回执，不接受签名 URL 或 `media://` 引用。
 
 ## Interface Contract
 
@@ -60,8 +60,7 @@ type UploadGrant = {
 
 type ConfirmedUpload = {
   mediaRef: `media://${string}`
-  readUrl: string
-  readExpiresIn: 300
+  size: number
 }
 
 presignPhotoUpload(provinceCode: string, ext: '.jpg' | '.jpeg' | '.png' | '.webp', contentType: 'image/jpeg' | 'image/png' | 'image/webp'): Promise<UploadGrant>
@@ -70,6 +69,8 @@ confirmUpload(key: string): Promise<ConfirmedUpload>
 presignRead(key: string): Promise<string>
 delete(key: string): Promise<void>
 ```
+
+`ConfirmedUpload` 是 storage 到服务端的内部契约。HTTP `POST /media/confirm` 的响应为 `{ uploadReceipt, readUrl, readExpiresIn: 300 }`；`uploadReceipt` 是数据库持久化的、10 分钟有效且只能消费一次的不透明 ID，绝不暴露 `mediaRef`。
 
 - 这是一个深模块：它集中签名、读取首段、对象元数据、删除和存储错误映射；业务模块和客户端只知道逻辑 key 与短期读取 URL。
 - 当前 `R2MediaStorage` adapter 使用 `PutObjectCommand` 签发上传、使用 `GetObjectCommand` 签发读取；这些 R2 细节不泄露到业务模块。
@@ -100,9 +101,9 @@ toLogicalKey(reference: MediaReference, allowedPrefixes: string[]): string
 
 | 方法与路径 | 成功响应变化 | 错误 | 对应 Behavior |
 |---|---|---|---|
-| `GET /provinces/:code/photos` | 每项 `url` 为最多 300 秒的 GET 签名地址 | 401、404、500 | 受保护内容读取 |
-| `GET /albums` | `coverUrl` 为最多 300 秒的 GET 签名地址或 `null` | 401、500 | 相册媒体读取 |
-| `GET /albums/:id/pages` | `content.images` 中每项为最多 300 秒的 GET 签名地址 | 401、404、500 | 相册媒体读取 |
+| `GET /provinces/:code/photos` | 每项 `url` 为最多 300 秒的 GET 签名地址 | 401、404、503 | 受保护内容读取 |
+| `GET /albums` | `coverUrl` 为最多 300 秒的 GET 签名地址或 `null` | 401、503 | 相册媒体读取 |
+| `GET /albums/:id/pages` | `content.images` 中每项为最多 300 秒的 GET 签名地址 | 401、404、503 | 相册媒体读取 |
 
 `GET /provinces` 和 `GET /tips/random` 不含媒体字节地址，本项不改变其返回体。401/403 保持 Nest 当前异常语义；不在本项额外引入全局响应 envelope 或 URL 版本。
 
@@ -110,19 +111,19 @@ toLogicalKey(reference: MediaReference, allowedPrefixes: string[]): string
 
 | 方法与路径 | 请求 | 成功响应 | 错误 | 对应 Behavior |
 |---|---|---|---|---|
-| `POST /photos/presign` | `{ provinceCode, filename, contentType }` | `UploadGrant` | 403、404、422 | 管理员私有上传与保存 |
-| `POST /albums/presign` | `{ filename, contentType }` | `UploadGrant` | 403、422 | 管理员私有上传与保存 |
-| `POST /media/confirm` | `{ key }` | `ConfirmedUpload` | 403、404、422 | 管理员私有上传与保存 |
-| `POST /photos` | `{ provinceCode, mediaRef, annotation?, order }` | 返回的 `url` 为短期读取地址 | 400、403、404、422 | 管理员私有上传与保存 |
-| `POST/PUT /albums` | `coverRef` 为空或规范媒体引用 | 返回的 `coverUrl` 为短期读取地址 | 400、403、404、409、422 | 受控存储引用 |
-| `POST /albums/:id/pages` | `content.images` 的每项为空或规范媒体引用 | 返回的图片值为短期读取地址 | 400、403、404、422 | 受控存储引用 |
-| `PUT /pages/:id` | `content.images` 的每项为空或规范媒体引用 | 返回的图片值为短期读取地址 | 400、403、404、422 | 受控存储引用 |
+| `POST /photos/presign` | `{ provinceCode, filename, contentType }` | `UploadGrant` | 400、403、404 | 管理员私有上传与保存 |
+| `POST /albums/presign` | `{ filename, contentType }` | `UploadGrant` | 400、403 | 管理员私有上传与保存 |
+| `POST /media/confirm` | `{ key }` | `{ uploadReceipt, readUrl, readExpiresIn: 300 }` | 403、404、422、503 | 管理员私有上传与保存 |
+| `POST /photos` | `{ provinceCode, uploadReceipt, annotation?, order }` | 返回的 `url` 为短期读取地址 | 400、403、404、422、503 | 管理员私有上传与保存 |
+| `POST/PUT /albums` | `coverUploadReceipt?` | 返回的 `coverUrl` 为短期读取地址 | 400、403、404、409、422、503 | 受控存储引用 |
+| `POST /albums/:id/pages` | `content.imageReceipts` 的每项为空、保留标记或上传回执 | 返回的图片值为短期读取地址 | 400、403、404、422、503 | 受控存储引用 |
+| `PUT /pages/:id` | `content.imageReceipts` 的每项为空、保留标记或上传回执 | 返回的图片值为短期读取地址 | 400、403、404、422、503 | 受控存储引用 |
 
-新增 `mediaRef`、`coverRef` 和页面图片引用的 DTO 验证器：只接受 `media://` 下的允许逻辑 key 前缀。上述路由路径保持不变，只把保存字段从 URL 改为规范媒体引用。`PhotoManage.vue`、`AlbumList.vue` 和 `PageEditor.vue` 使用 `POST /media/confirm` 返回的 `mediaRef` 保存、使用 `readUrl` 预览；短期地址不会写入数据库。前台 client 只消费读取接口返回的短期地址，不创建存储签名。
+上述路由路径保持不变。DTO 明确拒绝废弃的 `mediaRef`、`coverRef` 和 `images` 字段；`MediaUploadReceiptService` 在与业务写入相同的事务内原子消费回执，并校验照片省份或相册范围。`PhotoManage.vue`、`AlbumList.vue` 和 `PageEditor.vue` 使用 `POST /media/confirm` 返回的 `uploadReceipt` 保存、使用 `readUrl` 预览；短期地址不会写入数据库。前台 client 只消费读取接口返回的短期地址，不创建存储签名。
 
 ## Data Model
 
-本项不做 Prisma 结构迁移，以避免与 DR-002 的媒体生命周期模型重叠；写入语义改变如下：
+除既有媒体字段外，本项增加 `MediaUploadReceipt` 表：`key` 唯一、`scope`、可选 `provinceCode`、`expiresAt` 与 `consumedAt`。它是确认和业务写入之间的服务器侧能力凭据，不能由浏览器伪造或复用；写入语义如下：
 
 | 现有位置 | 新写入值 | 读取兼容性 | 约束 |
 |---|---|---|---|
