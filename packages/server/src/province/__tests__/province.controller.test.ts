@@ -25,6 +25,24 @@ describe('Province API', () => {
 
   afterAll(() => app.close())
 
+  async function createPhotoReceipt(key: string) {
+    return (
+      await prisma.mediaUploadReceipt.upsert({
+        where: { key },
+        create: {
+          key,
+          scope: 'photo',
+          provinceCode: 'hunan',
+          expiresAt: new Date(Date.now() + 60_000),
+        },
+        update: {
+          consumedAt: null,
+          expiresAt: new Date(Date.now() + 60_000),
+        },
+      })
+    ).id
+  }
+
   it('GET /provinces 返回 34 个省份', async () => {
     const res = await request(app.getHttpServer()).get('/api/provinces').set('Authorization', `Bearer ${visitorToken}`)
     expect(res.status).toBe(200)
@@ -44,11 +62,12 @@ describe('Province API', () => {
   // --- AC2: visitor/owner/admin 读取同一媒体返回短期 URL ---
 
   it('GET /provinces/:code/photos visitor 获取签名 URL', async () => {
+    const uploadReceipt = await createPhotoReceipt('photos/hunan/signed-test.webp')
     // 先创建一张照片（用 admin）
     const createRes = await request(app.getHttpServer())
       .post('/api/photos')
       .set('Authorization', `Bearer ${adminToken}`)
-      .send({ provinceCode: 'hunan', mediaRef: 'media://photos/hunan/signed-test.webp', order: 100 })
+      .send({ provinceCode: 'hunan', uploadReceipt, order: 100 })
     expect(createRes.status).toBe(201)
 
     const res = await request(app.getHttpServer())
@@ -93,6 +112,32 @@ describe('Province API', () => {
     expect(res.status).toBe(200)
     expect(res.body).toEqual([])
     // presignRead should not have been called for empty result
+  })
+
+  it('GET /provinces/:code/photos never returns an un-migrated legacy URL', async () => {
+    await prisma.photo.create({
+      data: {
+        provinceCode: 'hunan',
+        url: 'https://legacy-public.example.com/photos/hunan/leaked.webp',
+        key: '',
+        order: 999,
+      },
+    })
+    const res = await request(app.getHttpServer())
+      .get('/api/provinces/hunan/photos')
+      .set('Authorization', `Bearer ${visitorToken}`)
+    expect(res.status).toBe(503)
+    expect(JSON.stringify(res.body)).not.toContain('legacy-public.example.com')
+    await prisma.photo.deleteMany({ where: { order: 999 } })
+  })
+
+  it('GET /provinces/:code/photos 将存储签名故障映射为通用 503', async () => {
+    vi.mocked(mockStorage.presignRead).mockRejectedValueOnce(new Error('r2 endpoint: https://secret.example.com'))
+    const res = await request(app.getHttpServer())
+      .get('/api/provinces/hunan/photos')
+      .set('Authorization', `Bearer ${visitorToken}`)
+    expect(res.status).toBe(503)
+    expect(JSON.stringify(res.body)).not.toContain('secret.example.com')
   })
 
   it('GET /provinces/invalid/photos 返回 404', async () => {

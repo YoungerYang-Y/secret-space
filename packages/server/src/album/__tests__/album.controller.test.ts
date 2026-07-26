@@ -27,6 +27,23 @@ describe('Album API', () => {
 
   afterAll(() => app.close())
 
+  async function createAlbumReceipt(key: string) {
+    return (
+      await prisma.mediaUploadReceipt.upsert({
+        where: { key },
+        create: {
+          key,
+          scope: 'album',
+          expiresAt: new Date(Date.now() + 60_000),
+        },
+        update: {
+          consumedAt: null,
+          expiresAt: new Date(Date.now() + 60_000),
+        },
+      })
+    ).id
+  }
+
   beforeEach(async () => {
     await prisma.page.deleteMany()
     await prisma.album.deleteMany()
@@ -77,6 +94,14 @@ describe('Album API', () => {
     expect(res.body[0].coverUrl).toMatch(/^https:\/\/signed\.example\.com\/photos\/album\/cover\.webp/)
   })
 
+  it('GET /albums 将存储签名故障映射为通用 503', async () => {
+    await prisma.album.create({ data: { year: 2024, coverUrl: 'media://photos/album/sign-failure.webp' } })
+    vi.mocked(mockStorage.presignRead).mockRejectedValueOnce(new Error('R2 endpoint: https://secret.example.com'))
+    const res = await request(app.getHttpServer()).get('/api/albums').set('Authorization', `Bearer ${visitorToken}`)
+    expect(res.status).toBe(503)
+    expect(JSON.stringify(res.body)).not.toContain('secret.example.com')
+  })
+
   // --- AC3: 相册空封面不签名 ---
 
   it('GET /albums 空封面返回 null 不签名', async () => {
@@ -89,16 +114,30 @@ describe('Album API', () => {
   // --- AC1: album writes use coverRef and only admin ---
 
   it('POST /albums creates album with coverRef', async () => {
+    const coverUploadReceipt = await createAlbumReceipt('photos/album/cover.webp')
     const res = await request(app.getHttpServer())
       .post('/api/albums')
       .set('Authorization', `Bearer ${adminToken}`)
-      .send({ year: 2024, title: '2024年的回忆', coverRef: 'media://photos/album/cover.webp' })
+      .send({ year: 2024, title: '2024年的回忆', coverUploadReceipt })
     expect(res.status).toBe(201)
     expect(res.body.year).toBe(2024)
     expect(res.body.title).toBe('2024年的回忆')
     expect(res.body.id).toBeDefined()
-    // Persisted as media:// ref
-    expect(res.body.coverUrl).toBe('media://photos/album/cover.webp')
+    expect(res.body.coverUrl).toMatch(/^https:\/\/signed\.example\.com\/photos\/album\/cover\.webp/)
+    expect((await prisma.album.findUnique({ where: { id: res.body.id } }))?.coverUrl).toBe('media://photos/album/cover.webp')
+  })
+
+  it('POST /albums 在读取签名故障时不消费回执或写入相册', async () => {
+    const key = `photos/album/write-sign-failure-${Date.now()}.webp`
+    const coverUploadReceipt = await createAlbumReceipt(key)
+    vi.mocked(mockStorage.presignRead).mockRejectedValueOnce(new Error('R2 temporarily unavailable'))
+    const res = await request(app.getHttpServer())
+      .post('/api/albums')
+      .set('Authorization', `Bearer ${adminToken}`)
+      .send({ year: 2024, coverUploadReceipt })
+    expect(res.status).toBe(503)
+    expect((await prisma.mediaUploadReceipt.findUnique({ where: { key } }))?.consumedAt).toBeNull()
+    expect(await prisma.album.findUnique({ where: { year: 2024 } })).toBeNull()
   })
 
   // --- AC3: 含 provider 信息的引用返回 400 ---
@@ -147,12 +186,13 @@ describe('Album API', () => {
 
   it('PUT /albums/:id updates coverRef', async () => {
     const album = await prisma.album.create({ data: { year: 2024 } })
+    const coverUploadReceipt = await createAlbumReceipt('photos/album/new-cover.webp')
     const res = await request(app.getHttpServer())
       .put(`/api/albums/${album.id}`)
       .set('Authorization', `Bearer ${adminToken}`)
-      .send({ coverRef: 'media://photos/album/new-cover.webp' })
+      .send({ coverUploadReceipt })
     expect(res.status).toBe(200)
-    expect(res.body.coverUrl).toBe('media://photos/album/new-cover.webp')
+    expect(res.body.coverUrl).toMatch(/^https:\/\/signed\.example\.com\/photos\/album\/new-cover\.webp/)
   })
 
   it('PUT /albums/:id returns 409 for year conflict', async () => {
@@ -218,6 +258,24 @@ describe('Album API', () => {
     expect(content.images[1]).toMatch(/^https:\/\/signed\.example\.com\/photos\/album\/c\.webp/)
   })
 
+  it('GET /albums/:id/pages 对同一对象只签名一次', async () => {
+    const album = await prisma.album.create({ data: { year: 2024 } })
+    await prisma.page.create({
+      data: {
+        albumId: album.id,
+        order: 1,
+        templateId: 'double-h',
+        content: JSON.stringify({ images: ['media://photos/album/shared.webp', 'media://photos/album/shared.webp'] }),
+      },
+    })
+    const callCountBefore = vi.mocked(mockStorage.presignRead).mock.calls.length
+    const res = await request(app.getHttpServer())
+      .get(`/api/albums/${album.id}/pages`)
+      .set('Authorization', `Bearer ${visitorToken}`)
+    expect(res.status).toBe(200)
+    expect(vi.mocked(mockStorage.presignRead).mock.calls.length).toBe(callCountBefore + 1)
+  })
+
   // --- AC3: 空图片不签名 ---
 
   it('GET /albums/:id/pages 空图片数组不触发签名', async () => {
@@ -241,10 +299,11 @@ describe('Album API', () => {
 
   it('POST /albums/:id/pages creates page with media refs', async () => {
     const album = await prisma.album.create({ data: { year: 2024 } })
+    const imageReceipt = await createAlbumReceipt('photos/album/img.webp')
     const res = await request(app.getHttpServer())
       .post(`/api/albums/${album.id}/pages`)
       .set('Authorization', `Bearer ${adminToken}`)
-      .send({ templateId: 'single', content: { images: ['media://photos/album/img.webp'] }, order: 1 })
+      .send({ templateId: 'single', content: { imageReceipts: [imageReceipt] }, order: 1 })
     expect(res.status).toBe(201)
     expect(res.body.templateId).toBe('single')
     expect(res.body.order).toBe(1)
@@ -255,7 +314,16 @@ describe('Album API', () => {
     const res = await request(app.getHttpServer())
       .post(`/api/albums/${album.id}/pages`)
       .set('Authorization', `Bearer ${adminToken}`)
-      .send({ templateId: 'invalid', content: { images: [] }, order: 1 })
+      .send({ templateId: 'invalid', content: { imageReceipts: [] }, order: 1 })
+    expect(res.status).toBe(400)
+  })
+
+  it('POST /albums/:id/pages 缺失 content 返回 400', async () => {
+    const album = await prisma.album.create({ data: { year: 2024 } })
+    const res = await request(app.getHttpServer())
+      .post(`/api/albums/${album.id}/pages`)
+      .set('Authorization', `Bearer ${adminToken}`)
+      .send({ templateId: 'single', order: 1 })
     expect(res.status).toBe(400)
   })
 
@@ -263,19 +331,21 @@ describe('Album API', () => {
     const res = await request(app.getHttpServer())
       .post('/api/albums/nonexistent/pages')
       .set('Authorization', `Bearer ${adminToken}`)
-      .send({ templateId: 'single', content: { images: ['media://photos/album/x.webp'] }, order: 1 })
+      .send({ templateId: 'single', content: { imageReceipts: [] }, order: 1 })
     expect(res.status).toBe(404)
   })
 
   it('PUT /pages/:id updates content', async () => {
     const album = await prisma.album.create({ data: { year: 2024 } })
+    const firstReceipt = await createAlbumReceipt('photos/album/a.webp')
+    const secondReceipt = await createAlbumReceipt('photos/album/b.webp')
     const page = await prisma.page.create({
       data: { albumId: album.id, order: 1, templateId: 'single', content: '{"images":["media://photos/album/old.webp"]}' },
     })
     const res = await request(app.getHttpServer())
       .put(`/api/pages/${page.id}`)
       .set('Authorization', `Bearer ${adminToken}`)
-      .send({ templateId: 'double-h', content: { images: ['media://photos/album/a.webp', 'media://photos/album/b.webp'] } })
+      .send({ templateId: 'double-h', content: { imageReceipts: [firstReceipt, secondReceipt] } })
     expect(res.status).toBe(200)
     expect(res.body.templateId).toBe('double-h')
   })
@@ -284,7 +354,7 @@ describe('Album API', () => {
     const res = await request(app.getHttpServer())
       .put('/api/pages/nonexistent')
       .set('Authorization', `Bearer ${adminToken}`)
-      .send({ templateId: 'single', content: { images: ['media://photos/album/x.webp'] } })
+      .send({ templateId: 'single', content: { imageReceipts: [] } })
     expect(res.status).toBe(404)
   })
 
