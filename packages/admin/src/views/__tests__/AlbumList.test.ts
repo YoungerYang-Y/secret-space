@@ -61,7 +61,7 @@ describe('AlbumList cover upload flow', () => {
         data: { uploadUrl: 'https://r2.example.com/upload-cover', key: 'photos/album/cover-123.webp', uploadExpiresIn: 600 },
       }) // presign
       .mockResolvedValueOnce({
-        data: { mediaRef: 'media://photos/album/cover-123.webp', readUrl: 'https://r2.example.com/read/cover-123.webp?sig=def', readExpiresIn: 300 },
+        data: { uploadReceipt: 'receipt-cover-123', readUrl: 'https://r2.example.com/read/cover-123.webp?sig=def', readExpiresIn: 300 },
       }) // confirm
 
     const wrapper = mount(AlbumList, mountOptions)
@@ -93,12 +93,12 @@ describe('AlbumList cover upload flow', () => {
       expect.objectContaining({ headers: expect.any(Object) }),
     )
 
-    // AC2: Preview uses readUrl, form stores coverRef
+    // AC2: Preview uses readUrl, form stores only the opaque receipt
     expect(vm.form.coverPreviewUrl).toBe('https://r2.example.com/read/cover-123.webp?sig=def')
-    expect(vm.form.coverRef).toBe('media://photos/album/cover-123.webp')
+    expect(vm.form.coverUploadReceipt).toBe('receipt-cover-123')
   })
 
-  it('AC2: submit 时发送 coverRef 而非 publicUrl/coverUrl', async () => {
+  it('AC2: submit 时发送 coverUploadReceipt 而非 publicUrl/coverUrl', async () => {
     mockAxios.post.mockResolvedValue({ data: { id: 'album-1' } })
 
     const wrapper = mount(AlbumList, mountOptions)
@@ -108,7 +108,7 @@ describe('AlbumList cover upload flow', () => {
     vm.openCreate()
     vm.form.year = 2024
     vm.form.title = '测试相册'
-    vm.form.coverRef = 'media://photos/album/cover-test.webp'
+    vm.form.coverUploadReceipt = 'receipt-cover-test'
     vm.form.coverPreviewUrl = 'https://r2.example.com/read/cover-test.webp?sig=abc'
     await vm.handleSubmit()
     await flushPromises()
@@ -117,9 +117,10 @@ describe('AlbumList cover upload flow', () => {
     const albumCalls = mockAxios.post.mock.calls.filter(([url]: [string]) => url === '/albums')
     expect(albumCalls.length).toBeGreaterThan(0)
     const payload = albumCalls[0][1]
-    expect(payload).toHaveProperty('coverRef', 'media://photos/album/cover-test.webp')
+    expect(payload).toHaveProperty('coverUploadReceipt', 'receipt-cover-test')
     expect(payload).not.toHaveProperty('coverUrl')
     expect(payload).not.toHaveProperty('publicUrl')
+    expect(JSON.stringify(payload)).not.toContain('media://')
   })
 
   it('AC3: 确认失败时显示错误且不更新表单状态', async () => {
@@ -138,6 +139,6 @@ describe('AlbumList cover upload flow', () => {
     await flushPromises()
 
     expect(mockElMessage.error).toHaveBeenCalledWith('封面上传失败')
-    expect(vm.form.coverRef).toBeFalsy()
+    expect(vm.form.coverUploadReceipt).toBeFalsy()
   })
 })
