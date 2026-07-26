@@ -1,10 +1,11 @@
 import { Controller, Get, UseGuards } from '@nestjs/common'
 import { TipsService } from './tips.service'
+import { SessionGuard } from '../auth/session.guard'
 import { RolesGuard } from '../auth/roles.guard'
 import { Roles } from '../auth/roles.decorator'
 
 @Controller('tips')
-@UseGuards(RolesGuard)
+@UseGuards(SessionGuard, RolesGuard)
 export class TipsController {
   constructor(private tipsService: TipsService) {}
 

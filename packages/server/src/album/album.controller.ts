@@ -1,6 +1,7 @@
 import { Controller, Get, Post, Put, Delete, Param, Body, UseGuards, HttpCode, Inject, BadRequestException } from '@nestjs/common'
 import { AlbumService } from './album.service'
 import { CreateAlbumDto, UpdateAlbumDto, CreatePageDto, UpdatePageDto, ReorderPagesDto, AlbumPresignDto } from './dto/album.dto'
+import { SessionGuard } from '../auth/session.guard'
 import { RolesGuard } from '../auth/roles.guard'
 import { Roles } from '../auth/roles.decorator'
 import { MEDIA_STORAGE } from '../media/media-storage'
@@ -11,7 +12,7 @@ const ALLOWED_CONTENT_TYPES: readonly string[] = ['image/jpeg', 'image/png', 'im
 const ALLOWED_EXTENSIONS: readonly string[] = ['.jpg', '.jpeg', '.png', '.webp']
 
 @Controller()
-@UseGuards(RolesGuard)
+@UseGuards(SessionGuard, RolesGuard)
 export class AlbumController {
   constructor(
     private albumService: AlbumService,

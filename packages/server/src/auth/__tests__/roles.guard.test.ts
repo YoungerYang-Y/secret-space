@@ -1,56 +1,68 @@
-import { Test } from '@nestjs/testing'
-import { Controller, Get, INestApplication, UseGuards } from '@nestjs/common'
+import { INestApplication } from '@nestjs/common'
 import request from 'supertest'
-import { AppModule } from '../../app.module'
-import { RolesGuard } from '../roles.guard'
-import { Roles } from '../roles.decorator'
 import * as jwt from 'jsonwebtoken'
 import { JWT_SECRET } from '../auth.service'
+import { createTestApp } from '../../__tests__/test-utils'
+import { RateLimitGuard } from '../rate-limit.guard'
 
-@Controller('test-guard')
-@UseGuards(RolesGuard)
-class TestController {
-  @Get('admin-only')
-  @Roles('admin')
-  adminOnly() {
-    return { ok: true }
-  }
-}
-
+/**
+ * RolesGuard 测试
+ * 测试 SessionGuard + RolesGuard 组合的认证授权行为
+ * 使用 /api/photos/presign 作为 admin-only 端点进行测试
+ */
 describe('RolesGuard', () => {
   let app: INestApplication
 
   beforeAll(async () => {
-    const module = await Test.createTestingModule({
-      imports: [AppModule],
-      controllers: [TestController],
-    }).compile()
-    app = module.createNestApplication()
-    app.setGlobalPrefix('api', { exclude: ['health'] })
-    await app.init()
+    const result = await createTestApp()
+    app = result.app
   })
 
   afterAll(() => app.close())
-
-  it('admin role 放行', async () => {
-    const token = jwt.sign({ role: 'admin' }, JWT_SECRET, { expiresIn: '1h' })
-    const res = await request(app.getHttpServer())
-      .get('/api/test-guard/admin-only')
-      .set('Authorization', `Bearer ${token}`)
-    expect(res.status).toBe(200)
-    expect(res.body).toEqual({ ok: true })
+  beforeEach(() => {
+    RateLimitGuard.attempts.clear()
   })
 
-  it('owner role 拒绝管理 API', async () => {
-    const token = jwt.sign({ role: 'owner' }, JWT_SECRET, { expiresIn: '1h' })
-    const res = await request(app.getHttpServer())
-      .get('/api/test-guard/admin-only')
-      .set('Authorization', `Bearer ${token}`)
-    expect(res.status).toBe(403)
+  describe('Bearer Token 认证（Client 使用）', () => {
+    it('admin role 放行', async () => {
+      const token = jwt.sign({ role: 'admin' }, JWT_SECRET, { expiresIn: '1h' })
+      const res = await request(app.getHttpServer())
+        .post('/api/photos/presign')
+        .set('Authorization', `Bearer ${token}`)
+        .send({ provinceCode: 'hunan', filename: 'test.jpg', contentType: 'image/jpeg' })
+      expect(res.status).toBe(200)
+    })
+
+    it('owner role 拒绝管理 API', async () => {
+      const token = jwt.sign({ role: 'owner' }, JWT_SECRET, { expiresIn: '1h' })
+      const res = await request(app.getHttpServer())
+        .post('/api/photos/presign')
+        .set('Authorization', `Bearer ${token}`)
+        .send({ provinceCode: 'hunan', filename: 'test.jpg', contentType: 'image/jpeg' })
+      expect(res.status).toBe(403)
+    })
+  })
+
+  describe('Cookie 认证（Admin 使用）', () => {
+    it('admin Cookie 放行', async () => {
+      // 先登录获取 Cookie
+      const loginRes = await request(app.getHttpServer())
+        .post('/api/auth/verify')
+        .send({ password: 'admin888' })
+      const cookie = loginRes.headers['set-cookie'][0]
+
+      const res = await request(app.getHttpServer())
+        .post('/api/photos/presign')
+        .set('Cookie', cookie)
+        .send({ provinceCode: 'hunan', filename: 'test.jpg', contentType: 'image/jpeg' })
+      expect(res.status).toBe(200)
+    })
   })
 
   it('未认证请求返回 401', async () => {
-    const res = await request(app.getHttpServer()).get('/api/test-guard/admin-only')
+    const res = await request(app.getHttpServer())
+      .post('/api/photos/presign')
+      .send({ provinceCode: 'hunan', filename: 'test.jpg', contentType: 'image/jpeg' })
     expect(res.status).toBe(401)
   })
 })

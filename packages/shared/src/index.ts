@@ -9,7 +9,6 @@ export interface AuthVerifyRequest {
 }
 
 export interface AuthVerifyResponse {
-  token: string
   role: 'owner' | 'visitor' | 'admin'
 }
 

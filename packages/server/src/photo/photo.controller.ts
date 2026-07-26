@@ -1,11 +1,12 @@
 import { Controller, Post, Put, Delete, Body, Param, UseGuards, HttpCode, ParseIntPipe } from '@nestjs/common'
 import { PhotoService } from './photo.service'
+import { SessionGuard } from '../auth/session.guard'
 import { RolesGuard } from '../auth/roles.guard'
 import { Roles } from '../auth/roles.decorator'
 import { PresignDto, CreatePhotoDto, ReorderDto, UpdatePhotoDto } from './dto/photo.dto'
 
 @Controller('photos')
-@UseGuards(RolesGuard)
+@UseGuards(SessionGuard, RolesGuard)
 @Roles('admin')
 export class PhotoController {
   constructor(private photoService: PhotoService) {}

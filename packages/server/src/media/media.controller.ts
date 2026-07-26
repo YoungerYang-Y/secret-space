@@ -1,4 +1,5 @@
 import { Controller, Get, Post, Body, Query, UseGuards, HttpCode, Inject, UnprocessableEntityException, BadRequestException, ServiceUnavailableException } from '@nestjs/common'
+import { SessionGuard } from '../auth/session.guard'
 import { RolesGuard } from '../auth/roles.guard'
 import { Roles } from '../auth/roles.decorator'
 import { MEDIA_STORAGE } from './media-storage'
@@ -11,7 +12,7 @@ const ALLOWED_KEY_PREFIXES = ['tmp/photos/']
 const MEDIA_PROTOCOL = 'media://'
 
 @Controller('media')
-@UseGuards(RolesGuard)
+@UseGuards(SessionGuard, RolesGuard)
 export class MediaController {
   constructor(
     @Inject(MEDIA_STORAGE) private storage: MediaStorage,
