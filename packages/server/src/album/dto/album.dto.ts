@@ -1,5 +1,25 @@
-import { IsInt, IsOptional, IsString, IsIn, IsArray, ValidateNested, ArrayMaxSize, IsNotEmpty, Matches } from 'class-validator'
+import { IsInt, IsOptional, IsString, IsIn, IsArray, ValidateNested, ArrayMaxSize, IsNotEmpty, Matches, IsEmpty, IsDefined, registerDecorator, ValidationOptions, ValidationArguments } from 'class-validator'
 import { Type } from 'class-transformer'
+
+function IsStringOrNull(validationOptions?: ValidationOptions) {
+  return function (object: object, propertyName: string) {
+    registerDecorator({
+      name: 'isStringOrNull',
+      target: object.constructor,
+      propertyName,
+      options: validationOptions,
+      validator: {
+        validate(value: unknown) {
+          if (!Array.isArray(value)) return false
+          return value.every((item) => item === null || typeof item === 'string')
+        },
+        defaultMessage(args: ValidationArguments) {
+          return `${args.property} 中的每项必须是字符串或 null`
+        },
+      },
+    })
+  }
+}
 
 export class CreateAlbumDto {
   @IsInt()
@@ -11,8 +31,11 @@ export class CreateAlbumDto {
 
   @IsOptional()
   @IsString()
-  @Matches(/^media:\/\//, { message: 'coverRef must start with media://' })
-  coverRef?: string
+  coverUploadReceipt?: string
+
+  @IsOptional()
+  @IsEmpty({ message: 'coverRef 已废弃，请使用 coverUploadReceipt' })
+  coverRef?: never
 }
 
 export class UpdateAlbumDto {
@@ -26,17 +49,25 @@ export class UpdateAlbumDto {
 
   @IsOptional()
   @IsString()
-  @Matches(/^media:\/\//, { message: 'coverRef must start with media://' })
-  coverRef?: string
+  coverUploadReceipt?: string
+
+  @IsOptional()
+  @IsEmpty({ message: 'coverRef 已废弃，请使用 coverUploadReceipt' })
+  coverRef?: never
 }
 
 export const VALID_TEMPLATES = ['single', 'double-h', 'double-v', 'triple', 'photo-text'] as const
 
 export class PageContentDto {
   @IsArray()
-  @IsString({ each: true })
   @ArrayMaxSize(10)
-  images: string[]
+  @IsStringOrNull()
+  @IsOptional()
+  imageReceipts?: Array<string | null>
+
+  @IsOptional()
+  @IsEmpty({ message: 'images 已废弃，请使用 imageReceipts' })
+  images?: never
 
   @IsOptional()
   @IsString()
@@ -47,6 +78,7 @@ export class CreatePageDto {
   @IsIn(VALID_TEMPLATES)
   templateId: string
 
+  @IsDefined()
   @ValidateNested()
   @Type(() => PageContentDto)
   content: PageContentDto

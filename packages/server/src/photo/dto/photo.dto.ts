@@ -1,4 +1,4 @@
-import { IsString, IsNotEmpty, IsInt, IsOptional, IsArray, Matches } from 'class-validator'
+import { IsString, IsNotEmpty, IsInt, IsOptional, IsArray, Matches, IsEmpty } from 'class-validator'
 
 export class PresignDto {
   @IsString()
@@ -22,8 +22,11 @@ export class CreatePhotoDto {
 
   @IsString()
   @IsNotEmpty()
-  @Matches(/^media:\/\//, { message: 'mediaRef must start with media://' })
-  mediaRef: string
+  uploadReceipt: string
+
+  @IsOptional()
+  @IsEmpty({ message: 'mediaRef 已废弃，请使用 uploadReceipt' })
+  mediaRef?: never
 
   @IsString()
   @IsOptional()
