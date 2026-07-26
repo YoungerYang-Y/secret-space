@@ -7,7 +7,6 @@ export type ImageContentType = 'image/jpeg' | 'image/png' | 'image/webp'
 export interface UploadGrant {
   uploadUrl: string
   key: string
-  mediaRef: string
 }
 
 export interface ConfirmedUpload {

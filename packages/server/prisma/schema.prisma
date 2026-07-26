@@ -69,3 +69,15 @@ model MediaDeletionTask {
 
   @@index([status, nextAttemptAt])
 }
+
+model MediaUploadReceipt {
+  id           String   @id @default(cuid())
+  key          String   @unique
+  scope        String
+  provinceCode String?
+  expiresAt    DateTime
+  consumedAt   DateTime?
+  createdAt    DateTime @default(now())
+
+  @@index([expiresAt])
+}

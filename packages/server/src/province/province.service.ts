@@ -1,4 +1,4 @@
-import { Injectable, Inject, NotFoundException } from '@nestjs/common'
+import { Injectable, Inject, NotFoundException, ServiceUnavailableException } from '@nestjs/common'
 import { PrismaService } from '../prisma/prisma.service'
 import { MEDIA_STORAGE } from '../media/media-storage'
 import type { MediaStorage } from '../media/media-storage'
@@ -50,26 +50,29 @@ export class ProvinceService {
       orderBy: { order: 'asc' },
       select: { id: true, url: true, annotation: true, order: true },
     })
+    const reads = new Map<string, Promise<string>>()
     return Promise.all(
       photos.map(async (photo) => ({
         ...photo,
-        url: await this.signUrl(photo.url),
+        url: await this.signUrl(photo.url, reads),
       })),
     )
   }
 
-  private async signUrl(url: string): Promise<string> {
-    if (url.startsWith(MEDIA_PROTOCOL)) {
-      const key = this.mediaRef.toLogicalKey(url as `media://${string}`, PHOTO_PREFIXES)
-      return this.storage.presignRead(key)
-    }
-    // Legacy URL: convert to media ref then sign
+  private async signUrl(url: string, reads: Map<string, Promise<string>>): Promise<string> {
     try {
-      const ref = this.mediaRef.fromLegacyUrl(url, PHOTO_PREFIXES)
-      const key = this.mediaRef.toLogicalKey(ref, PHOTO_PREFIXES)
-      return this.storage.presignRead(key)
-    } catch {
-      return url
+      if (!url.startsWith(MEDIA_PROTOCOL)) throw new Error('not a media reference')
+      const key = this.mediaRef.toLogicalKey(url as `media://${string}`, PHOTO_PREFIXES)
+      const existing = reads.get(key)
+      if (existing) return existing
+      const read = this.storage.presignRead(key).catch(() => {
+        throw new ServiceUnavailableException('媒体服务暂不可用')
+      })
+      reads.set(key, read)
+      return read
+    } catch (error) {
+      if (error instanceof ServiceUnavailableException) throw error
+      throw new ServiceUnavailableException('媒体内容暂不可用')
     }
   }
 }

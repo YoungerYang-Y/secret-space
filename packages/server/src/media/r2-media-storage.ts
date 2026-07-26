@@ -83,7 +83,7 @@ export class R2MediaStorage implements MediaStorage {
     // 上传先落到 tmp/ staging 前缀，confirm 通过后才晋级到正式 key；
     // 未确认的孤儿对象由桶级 lifecycle 规则自动清除（DR-002）
     const finalKey = `photos/${provinceCode}/${uuid()}${ext}`
-    return this.createUploadGrant(`${STAGING_PREFIX}${finalKey}`, finalKey, contentType)
+    return this.createUploadGrant(`${STAGING_PREFIX}${finalKey}`, contentType)
   }
 
   async presignAlbumUpload(
@@ -91,7 +91,7 @@ export class R2MediaStorage implements MediaStorage {
     contentType: ImageContentType,
   ): Promise<UploadGrant> {
     const finalKey = `photos/album/${uuid()}${ext}`
-    return this.createUploadGrant(`${STAGING_PREFIX}${finalKey}`, finalKey, contentType)
+    return this.createUploadGrant(`${STAGING_PREFIX}${finalKey}`, contentType)
   }
 
   async presignRead(key: string): Promise<string> {
@@ -103,61 +103,57 @@ export class R2MediaStorage implements MediaStorage {
     if (!stagingKey.startsWith(`${STAGING_PREFIX}photos/`) || stagingKey.includes('..')) {
       throw new ConfirmUploadError('Invalid staging key')
     }
-    let headResult: { ContentLength?: number; ContentType?: string }
+    const finalKey = stagingKey.slice(STAGING_PREFIX.length)
     try {
-      headResult = await this.client.send(
-        new HeadObjectCommand({ Bucket: this.bucket, Key: stagingKey }),
-      )
-    } catch {
-      throw new ConfirmUploadError('Object not found')
+      const size = await this.validateImageObject(stagingKey)
+      // 校验通过：晋级 staging 对象到最终 key，再删除 staging 对象
+      try {
+        await this.client.send(
+          new CopyObjectCommand({
+            Bucket: this.bucket,
+            Key: finalKey,
+            CopySource: `${this.bucket}/${stagingKey}`,
+          }),
+        )
+        await this.client.send(
+          new DeleteObjectCommand({ Bucket: this.bucket, Key: stagingKey }),
+        )
+      } catch {
+        throw new ConfirmUploadError('Failed to promote staged object')
+      }
+      return { mediaRef: `media://${finalKey}`, size }
+    } catch (error: unknown) {
+      if (error instanceof ConfirmUploadError) throw error
+      // 若前一次已完成 Copy/Delete 但数据库回执写入失败，重新校验最终对象并恢复确认。
+      try {
+        const size = await this.validateImageObject(finalKey)
+        return { mediaRef: `media://${finalKey}`, size }
+      } catch {
+        throw new ConfirmUploadError('Object not found')
+      }
     }
+  }
 
+  private async validateImageObject(key: string): Promise<number> {
+    const headResult = await this.client.send(
+      new HeadObjectCommand({ Bucket: this.bucket, Key: key }),
+    ) as { ContentLength?: number; ContentType?: string }
     const size = headResult.ContentLength ?? 0
-    if (size > MAX_SIZE_BYTES) {
-      throw new ConfirmUploadError('Object exceeds 10 MiB limit')
-    }
-
+    if (size > MAX_SIZE_BYTES) throw new ConfirmUploadError('Object exceeds 10 MiB limit')
     const contentType = headResult.ContentType as string
     if (!SUPPORTED_CONTENT_TYPES.includes(contentType as ImageContentType)) {
       throw new ConfirmUploadError('Unsupported content type')
     }
-
     const getResult = await this.client.send(
-      new GetObjectCommand({
-        Bucket: this.bucket,
-        Key: stagingKey,
-        Range: `bytes=0-${MAGIC_READ_BYTES - 1}`,
-      }),
+      new GetObjectCommand({ Bucket: this.bucket, Key: key, Range: `bytes=0-${MAGIC_READ_BYTES - 1}` }),
     )
     const body = getResult.Body as { transformToByteArray(): Promise<Uint8Array> }
     const bytes = await body.transformToByteArray()
-
     const expectedMagic = MAGIC_CHECKS.find((m) => m.contentType === contentType)
     if (!expectedMagic || !expectedMagic.check(bytes)) {
       throw new ConfirmUploadError('Magic bytes do not match declared content type')
     }
-
-    // 校验通过：晋级 staging 对象到最终 key，再删除 staging 对象
-    const finalKey = stagingKey.slice(STAGING_PREFIX.length)
-    try {
-      await this.client.send(
-        new CopyObjectCommand({
-          Bucket: this.bucket,
-          Key: finalKey,
-          CopySource: `${this.bucket}/${stagingKey}`,
-        }),
-      )
-      await this.client.send(
-        new DeleteObjectCommand({ Bucket: this.bucket, Key: stagingKey }),
-      )
-    } catch {
-      throw new ConfirmUploadError('Failed to promote staged object')
-    }
-
-    return {
-      mediaRef: `media://${finalKey}`,
-      size,
-    }
+    return size
   }
 
   async delete(key: string): Promise<void> {
@@ -174,7 +170,6 @@ export class R2MediaStorage implements MediaStorage {
    */
   private async createUploadGrant(
     stagingKey: string,
-    finalKey: string,
     contentType: ImageContentType,
   ): Promise<UploadGrant> {
     const command = new PutObjectCommand({
@@ -188,7 +183,6 @@ export class R2MediaStorage implements MediaStorage {
     return {
       uploadUrl,
       key: stagingKey,
-      mediaRef: `media://${finalKey}`,
     }
   }
 }
