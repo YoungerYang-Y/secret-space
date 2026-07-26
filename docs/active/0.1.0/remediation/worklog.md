@@ -79,6 +79,101 @@
 - **完整验证**：`pnpm test` 通过：Shared 1/1、Admin 2/2、Client 32/32、Server 44/44；`pnpm build` 通过。构建仅保留既有的 Rollup PURE 注释和 chunk-size 警告。
 - **状态变化**：DR-009 `in-progress` → `verified`；DR-001 `blocked` → `queued`，可重新进入 T1 的 Red 阶段。
 
+## 2026-07-19：DR-001 T6 部署清单与跨层验收
+
+- **追踪 ID**：DR-001 / T6
+- **范围**：创建部署运行手册 `deployment-checklist.md`；扩展 `app.e2e.test.ts` 增加私有媒体访问控制断言；运行全仓构建与测试验收。
+- **已创建文件**：`docs/active/0.1.0/remediation/dr-001-private-media/deployment-checklist.md`（7 节运行手册：备份、R2 私有访问、CORS 配置、dry-run、apply、回滚、provider 切换）。
+- **已修改文件**：`packages/server/src/__tests__/app.e2e.test.ts`（新增 4 个私有媒体访问控制 E2E 断言）；`docs/active/0.1.0/remediation/worklog.md`（本条目）。
+- **跨层验收证据**：
+  - `album-flow.e2e.test.ts`：匿名读取 → 401；管理员确认上传 → `media://` 引用保存 → 列表读取 → 签名 URL 返回。
+  - `app.e2e.test.ts`：匿名省份照片 → 401；匿名相册列表 → 401；授权用户省份照片 → 200；授权管理员相册 → 200。
+- **构建验证**：`pnpm build` 退出码 0；Shared、Server、Client、Admin 均构建成功。
+- **完整测试**：`pnpm test` 退出码 0；Server 141/141、Admin 11/11、Client 36/36、Shared 1/1 = 189/189 通过。
+- **AC 结果**：
+  - AC1 ✅：清单包含运行前备份、dry-run 零失败门槛、R2 CORS OPTIONS 验收、匿名直连非 2xx、apply、回滚和 30 天 provider 回退步骤。
+  - AC2 ✅：Server 集成测试验证匿名 401 无媒体 URL、授权角色获得签名 URL、管理端保存后再次读取显示媒体。
+  - AC3 ✅：全仓构建通过，`pnpm test` 189/189 通过。
+- **状态变化**：T6 `pending` → `done`。
+
+## 2026-07-19：DR-001 T6 后审查修正（补记）
+
+- **追踪 ID**：DR-001
+- **背景**：T6 验收通过后对方案实现做了一轮复审，发现 7 项问题并追加一轮收窄修正；本条目为补记，提交已在当日完成。
+- **实际提交**：
+  - `f599163 fix(media): 修复审查发现的 7 项问题`：移除遗留 `r2` 模块与 `r2.service`（统一由 `media` 模块承接）；收紧 `media-reference.service` 与 `media.controller` 边界；`province.service` 读取路径修正；部署清单与 Admin 测试相应修正。
+  - `11e7b6a fix(media): 收窄上传类型校验 + 补充环境变量文档 + 修正测试 mock`：`album.controller` 与 `photo.service` 上传类型校验收窄；`.env.example` 补充环境变量说明；`PageEditor.test.ts` mock 修正。
+- **验证**：两轮修正均通过定向测试后合入；当日分支末端 `pnpm test` 全绿（次日 2026-07-21 复验证据见下条）。
+- **状态变化**：DR-001 保持 `in-progress`（当时 tracker 状态滞留于 `queued`，由 2026-07-21 条目一并纠正）。
+
+## 2026-07-21：DR-001 复验通过并关闭
+
+- **追踪 ID**：DR-001
+- **开始状态**：`queued`（tracker 状态滞后于实现：T1～T6 及两轮审查修正均已于 2026-07-19 提交在 `codex/dr-001-private-media`，本条按规则补齐状态流转与新鲜证据）。
+- **完成标准逐项核对**：
+  1. 角色×资源×操作权限矩阵已记录：`dr-001-access-policy.md`（目标权限矩阵，方案 A 私有桶 + 短期签名读取）。✅
+  2. 内容读取 API 与矩阵一致：匿名读取省份照片/相册列表返回 401 且无媒体 URL；visitor/owner/admin 读取返回 300 秒签名 URL；写操作仅 admin；由 `app.e2e.test.ts`、`album-flow.e2e.test.ts`、各控制器测试断言。✅
+  3. 鉴权集成测试覆盖匿名、访客、所有者、管理员：匿名（app.e2e 401）、visitor（app.e2e / province.controller）、owner（album-flow 越权拒绝、album.controller、province.controller、roles.guard）、admin（全套写路径）。✅
+  4. 对象存储读取策略明确：私有桶禁止匿名读取、读取签名 300 秒 / 上传签名 600 秒、精确 CORS 与启动校验、持久化仅 `media://<logical-key>`；见 `dr-001-private-media/spec.md` 约束与 `deployment-checklist.md`。✅
+- **新鲜验证证据（WSL Ubuntu-24.04 内执行，worktree 根目录）**：
+  - `COREPACK_HOME=/tmp/secret-space-corepack TMPDIR=/tmp TMP=/tmp TEMP=/tmp pnpm test` 退出码 0；Server 141/141、Admin 11/11、Client 36/36、Shared 1/1，合计 189/189 通过。
+  - `pnpm --filter @secret-space/server build` 退出码 0。
+- **剩余风险与交接**：
+  - 分支 `codex/dr-001-private-media`（9 个提交）尚未合并回 `main`；合并后生产侧仍需按 `deployment-checklist.md` 执行：备份、禁用 R2 公开访问、精确 CORS、历史引用 dry-run 零失败后 apply、回滚预案。
+  - 已签发读取 URL 的最大既有访问窗口为 300 秒（令牌撤销后），属方案内已接受约束。
+  - 删除闭环（失败持久化重试、可观测记录）按范围切分不在本项，由 DR-002 承接。
+- **最终状态变化**：DR-001 `queued` → `verified`。下一待启动项 DR-002，启动前须先按规则在 tracker 标记 `in-progress`。
+
+## 2026-07-21：DR-002 启动与删除链路基线
+
+- **追踪 ID**：DR-002
+- **开始状态**：`queued` → `in-progress`。当前唯一 active 条目（DR-001 已于今日关闭）。
+- **基线证据**：2026-07-21 WSL 内 `pnpm test` 退出码 0（Server 141/141、Admin 11/11、Client 36/36、Shared 1/1）；`pnpm --filter @secret-space/server build` 退出码 0。分支 HEAD `ebd94f6`。
+- **现状删除链路分析（代码证据）**：
+  - `PhotoService.delete`：先 `storage.delete(photo.key)` 后删 DB；存储失败抛错导致 500，DB 记录保留，但存储故障期间管理员无法删除，且失败无任何持久化记录。
+  - `AlbumService.delete`：先删 DB 再 `Promise.allSettled` best-effort 删对象；失败仅 `console.error`，key 列表随 DB 删除丢失，失败对象永久孤儿。
+  - `AlbumService.deletePage`：只删 DB 记录，未触碰存储，页面图片必然成为孤儿对象。
+  - 删除时 key 由运行时从 `media://` 引用或 legacy URL 反解析（`extractKey` 可返回 `null`）；Photo 有持久化 `key` 列，Album/Page 无。
+  - 无任何持久化删除任务、重试机制或可观测失败记录；`r2-media-storage.ts` 注释将未确认上传的孤儿对象清理划归本项。
+- **范围确认**：按完成标准与审查建议（稳定 storageKey + 持久化删除任务，不从公开 URL 反解析 key），先输出 Spec 待用户确认，再进入 Design/Plan 与测试先行实现。不扩张范围：相册模板不变量归 DR-005，管理员会话归 DR-003。
+- **状态变化**：`queued` → `in-progress`。
+
+## 2026-07-21：DR-002 实施完成并关闭
+
+- **追踪 ID**：DR-002
+- **开始状态**：`in-progress`（基线见上条：全仓 189/189 绿、Server 构建退出 0）。
+- **过程**：用户确认 Spec 后产出 Design 与 Plan（T1～T5），按 Red → Green → Verify → Commit 逐任务执行。文档提交 `d6c4bae`。
+- **任务执行记录（每次 Red 均为 fresh 失败证据）**：
+  - **T1 删除任务模型与服务**（`86f8623`）：Red — 服务/模型不存在，目标套件无法加载（EXIT=1）；Green — 新增 `MediaDeletionTask` 模型与迁移、`MediaDeletionService`（enqueue/退避/清扫/启动钩子）；Verify — Server 148/148、server build 退出 0。实现注记：Prisma 5.0 SQLite 不支持 `createMany`，改为事务内逐条 `create`。
+  - **T2 Photo 删除接入**（`32480be`）：Red — 存储故障路径返回 500 且无持久化任务（2 用例失败）；Green — 事务内 `enqueueMany + photo.delete`，提交后 `runDueDeletions`，语义变为存储故障仍 204；Verify — Server 150/150。
+  - **T3 Album/Page 删除接入**（`d783721`）：Red — 无持久化任务记录（3 用例失败）；Green — 封面与各页图片从持久化 `media://` 引用收集 key，事务登记后删除；`deletePage` 首次纳入对象清理；移除 `Promise.allSettled + console` 清理与 `extractKey` URL 反解析；Verify — Server 153/153。
+  - **T4 上传 staging 与管理端接口**（`dccf2a0`）：Red — 端点不存在、tmp 行为未实现（19 用例失败）；Green — presign 落 `tmp/photos/...`，confirm 校验后 `CopyObject → photos/... → 删 tmp` 并返回最终 `mediaRef`，`/media/confirm` 只接受 `tmp/photos/` key 且 readUrl 针对最终 key；新增 `GET /media/deletion-tasks`（含 failing 派生状态）与 `POST /media/deletion-tasks/retry`（匿名 401、visitor/owner 403）；Verify — Server 164/164、server build 退出 0。
+  - **T5 部署清单与验收**（本提交）：`deployment-checklist.md` 追加 3A 节（`tmp/` 前缀 1 天过期 lifecycle 规则 + 验证命令 + 验收表行）。
+- **完成标准逐项核对**：
+  1. 媒体保存稳定 `storageKey` ✅ — Photo 持久化 `key` 列（迁移已回填），Album/Page 由持久化 `media://` 引用承载；删除任务 key 只来自这两类持久化来源，不从公开 URL 反解析。
+  2. 删除失败可持久化重试 ✅ — `MediaDeletionTask` 表持久化 key/attempts/lastError/nextAttemptAt；重试入口三处：删除提交后立即尝试、应用启动清扫、管理员 `POST /media/deletion-tasks/retry`；失败路径测试覆盖（存储故障 → pending → 恢复 → done）。
+  3. 失败有可观测记录 ✅ — 任务表即持久化记录，管理员可 `GET /media/deletion-tasks?status=pending|done|failing` 查询；`lastError` 剥除 URL。
+  4. 正常与失败路径测试通过 ✅ — 覆盖 enqueue 去重/非法 key、退避序列、到期过滤、幂等、重启不丢、三条业务链路的成功与故障路径、管理端接口鉴权矩阵。
+- **新鲜验证证据（WSL Ubuntu-24.04，worktree 根目录）**：
+  - `COREPACK_HOME=/tmp/secret-space-corepack TMPDIR=/tmp TMP=/tmp TEMP=/tmp pnpm test` 退出码 0；Server 164/164、Admin 11/11、Client 36/36、Shared 1/1，合计 212/212。
+  - `pnpm build` 退出码 0（shared、server、client、admin 全部构建成功）。
+- **剩余风险与交接**：
+  - 分支未合并回 `main`；生产部署需按 `deployment-checklist.md` 追加执行 3A 节（tmp/ lifecycle 规则），否则未确认上传不会被自动清除（不影响正确性，只影响桶内整洁）。
+  - 重试无进程内定时器，依赖启动清扫与管理员触发；媒体量显著增长后可另立条目评估定时清扫。
+  - `done` 任务记录保留作审计轨迹，清理策略留待后续需要时另立条目。
+- **最终状态变化**：DR-002 `in-progress` → `verified`。当前无 active 条目；下一待启动项 DR-003 或 DR-005。
+
+## 2026-07-22：DR-001 审查修正（一次性上传回执）
+
+- **追踪 ID**：DR-001（已验证条目的安全修正，未改变冻结的 P0/P1/P2 基线文档）。
+- **修正内容**：预签名不再暴露最终 `media://` 引用；`POST /media/confirm` 返回 10 分钟、按照片省份或相册范围绑定的一次性 `uploadReceipt` 与 300 秒预览地址。照片、相册封面和页面图片在业务事务内消费回执；直接引用、跨范围、过期和重放均被拒绝。
+- **恢复语义**：确认已晋级对象后若读取签名或回执入库暂时失败，同一 staging key 会重新校验最终对象并恢复未消费回执；写接口在消费回执和提交业务记录前先取得读取签名，签名失败不会留下已消费回执或半成功记录。
+- **安全与兼容性修正**：运行时旧 URL 不再回显；读取签名失败统一为无存储细节的 503；同一读取响应按 logical key 去重签名；`CreatePageDto.content` 必填。Admin 三个上传入口改为只提交回执，读取响应与写后响应均只返回短期 URL。
+- **新增回归覆盖**：未确认/重放/过期/跨省/跨范围回执、回执/预览持久化故障后的确认恢复、写前签名失败不消费回执、不写记录、旧 URL 不回显、签名故障脱敏、重复读取签名去重，以及缺失页面内容 400。
+- **独立复审**：两轮独立复审已完成；最终结论无 P0/P1。
+- **新鲜验证证据（WSL，worktree 根目录）**：`TMPDIR=/tmp TMP=/tmp TEMP=/tmp COREPACK_HOME=/tmp/secret-space-corepack pnpm test && pnpm build` 退出码 0；Server 180/180、Admin 11/11、Client 36/36、Shared 1/1，合计 228/228；四个 workspace 均构建成功。Admin 测试仍输出未注册 Element Plus 测试桩警告，未影响退出码。
+- **状态**：实现与验证完成，当前修改尚未提交；生产仍须按 DR-001 部署清单先完成历史引用 dry-run 零失败与私有桶/CORS 验收。
+
 ## 记录规范
 
 后续每次实施追加一个以日期和追踪 ID 命名的小节，并按以下顺序记录：

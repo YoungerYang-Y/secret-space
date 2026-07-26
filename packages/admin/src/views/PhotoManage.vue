@@ -32,20 +32,28 @@ async function fetchPhotos() {
 async function handleUpload(file: File) {
   uploading.value = true
   try {
+    // Step 1: Get presigned upload URL
     const presignRes = await axios.post('/photos/presign', {
       provinceCode: code,
       filename: file.name,
       contentType: file.type,
     }, { headers: headers() })
 
-    await axios.put(presignRes.data.uploadUrl, file, {
+    const { uploadUrl, key } = presignRes.data
+
+    // Step 2: PUT file to presigned URL
+    await axios.put(uploadUrl, file, {
       headers: { 'Content-Type': file.type },
     })
 
+    // Step 3: Confirm upload to get an opaque receipt
+    const confirmRes = await axios.post('/media/confirm', { key }, { headers: headers() })
+    const { uploadReceipt } = confirmRes.data
+
+    // Step 4: Save photo with the confirmed upload receipt
     await axios.post('/photos', {
       provinceCode: code,
-      url: presignRes.data.publicUrl,
-      key: presignRes.data.key,
+      uploadReceipt,
       order: photos.value.length,
     }, { headers: headers() })
 
