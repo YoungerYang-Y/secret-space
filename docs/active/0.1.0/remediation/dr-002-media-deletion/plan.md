@@ -48,10 +48,10 @@ T2/T3/T4 之间无相互依赖，可串行执行；T5 依赖前三者全部完�
 `enqueueMany` 在调用方事务内持久化待办任务：剔除空值、批内去重、拒绝非 `photos/` 前缀或含 `..` 的 key（记录 warn 并跳过）。`runDueDeletions` 只取 `status=pending 且 nextAttemptAt<=now` 的任务（升序、上限默认 50），逐条调用 `storage.delete`：成功则 `status=done + doneAt`；失败则 `attempts+1`、`lastError`（错误名+消息、截断、不含 URL）、`nextAttemptAt = now + min(60s×2^(attempts-1), 3600s)`；单条失败不影响其余。`onApplicationBootstrap` 发起一次清扫且绝不阻塞启动。
 
 **Acceptance Criteria:**
-- [ ] AC1: `enqueueMany` 批内去重、非法 key 被跳过且可断言；任务初始 `status=pending`、`nextAttemptAt≈now`。
-- [ ] AC2: 存储成功路径任务转 `done` 且有 `doneAt`；失败路径任务保持 `pending`，`attempts`/`lastError` 递增、退避正确（60s→120s→…→封顶 3600s）。
-- [ ] AC3: `runDueDeletions` 只处理到期待办，单条失败不影响其他任务；重复执行幂等（已 done 不再处理）。
-- [ ] AC4: `lastError` 不包含任何 URL；迁移只增表不触碰既有数据；`pnpm --filter @secret-space/server build` 退出 0。
+- [x] AC1: `enqueueMany` 批内去重、非法 key 被跳过且可断言；任务初始 `status=pending`、`nextAttemptAt≈now`。
+- [x] AC2: 存储成功路径任务转 `done` 且有 `doneAt`；失败路径任务保持 `pending`，`attempts`/`lastError` 递增、退避正确（60s→120s→…→封顶 3600s）。
+- [x] AC3: `runDueDeletions` 只处理到期待办，单条失败不影响其他任务；重复执行幂等（已 done 不再处理）。
+- [x] AC4: `lastError` 不包含任何 URL；迁移只增表不触碰既有数据；`pnpm --filter @secret-space/server build` 退出 0。
 
 **Execution:**
 - **Status:** done
@@ -109,19 +109,19 @@ Run: 同 Red 命令。Expected: **PASS**。
 删除照片时取 `photo.key`（空则从 `media://` url 解析，仍失败则跳过并 warn）；`prisma.$transaction` 内先 `enqueueMany` 后 `photo.delete`；提交后 `await runDueDeletions()`（尽力而为，异常不外抛）。移除先 `storage.delete` 后删库的旧逻辑。
 
 **Acceptance Criteria:**
-- [ ] AC1: 存储正常时删除返回 204，对象被删，任务 `done`。
-- [ ] AC2: 存储故障时删除仍返回 204，记录已删，任务 `pending` 含 `lastError`；存储恢复后经 retry 任务转 `done`。
-- [ ] AC3: 匿名/visitor/owner 仍 401/403；不存在 id 仍 404（既有断言保持）。
-- [ ] AC4: `photo.service.ts` 不再直接调用 `storage.delete`。
+- [x] AC1: 存储正常时删除返回 204，对象被删，任务 `done`。
+- [x] AC2: 存储故障时删除仍返回 204，记录已删，任务 `pending` 含 `lastError`；存储恢复后经 retry 任务转 `done`。
+- [x] AC3: 匿名/visitor/owner 仍 401/403；不存在 id 仍 404（既有断言保持）。
+- [x] AC4: `photo.service.ts` 不再直接调用 `storage.delete`。
 
 **Execution:**
 - **Status:** done | **Commit SHA:** 32480be | **Attempts:** 1 | **Blocked Reason:** null | **Red Result:** FAIL 符合预期 — 存储故障路径返回 500 且无持久化任务（2 个新用例失败，148 通过） | **Verify Result:** PASS — Server 15 文件 150/150（2026-07-21 WSL） | **AC Result:** 4/4 通过
 
 **Task Completion Gate:**
-- [ ] Red Result exists and passed
-- [ ] Verify Result exists and passed
-- [ ] AC Result: 4/4 passed
-- [ ] Commit SHA belongs to this task only
+- [x] Red Result exists and passed
+- [x] Verify Result exists and passed
+- [x] AC Result: 4/4 passed
+- [x] Commit SHA belongs to this task only
 
 **Step 1: Red**
 
@@ -165,19 +165,19 @@ Run: 同 Red 命令。Expected: **PASS**。
 `delete(albumId)`：从事务前的持久化数据收集 key（封面 `coverUrl` 与各页 `content.images` 中的 `media://` 引用，经 `toLogicalKey` 解析；非 `media://` 值跳过并 warn）；事务内登记任务并删除相册（Page 级联）；提交后清扫。`deletePage(pageId)`：同样登记该页图片任务后删除页面。移除 `Promise.allSettled + console` 清理与 `extractKey` URL 反解析。
 
 **Acceptance Criteria:**
-- [ ] AC1: 删除相册后封面与全部页面图片各有任务记录；存储正常时全部 `done`。
-- [ ] AC2: 存储故障时删除仍 204，任务 `pending`；恢复后 retry 转 `done`。
-- [ ] AC3: 删除单页会登记其图片任务（回归断言：不再出现「页面删除后对象无任务」）。
-- [ ] AC4: 服务内不再存在 `extractKey` / `Promise.allSettled` 清理残迹；`album-flow.e2e` 全链路通过。
+- [x] AC1: 删除相册后封面与全部页面图片各有任务记录；存储正常时全部 `done`。
+- [x] AC2: 存储故障时删除仍 204，任务 `pending`；恢复后 retry 转 `done`。
+- [x] AC3: 删除单页会登记其图片任务（回归断言：不再出现「页面删除后对象无任务」）。
+- [x] AC4: 服务内不再存在 `extractKey` / `Promise.allSettled` 清理残迹；`album-flow.e2e` 全链路通过。
 
 **Execution:**
 - **Status:** done | **Commit SHA:** d783721 | **Attempts:** 1 | **Blocked Reason:** null | **Red Result:** FAIL 符合预期 — 无持久化任务记录（3 个新用例失败，150 通过） | **Verify Result:** PASS — Server 15 文件 153/153，extractKey/Promise.allSettled 残迹已移除（2026-07-21 WSL） | **AC Result:** 4/4 通过
 
 **Task Completion Gate:**
-- [ ] Red Result exists and passed
-- [ ] Verify Result exists and passed
-- [ ] AC Result: 4/4 passed
-- [ ] Commit SHA belongs to this task only
+- [x] Red Result exists and passed
+- [x] Verify Result exists and passed
+- [x] AC Result: 4/4 passed
+- [x] Commit SHA belongs to this task only
 
 **Step 1: Red**
 
@@ -228,19 +228,19 @@ Run: `pnpm --filter @secret-space/server test -- src/album/__tests__/album.contr
 `presignPhotoUpload`/`presignAlbumUpload` 生成 `tmp/` 前缀 key；`confirmUpload` 校验后拷贝至去掉 `tmp/` 的最终 key 并删除 tmp 对象；确认接口的 key 校验改为 `tmp/photos/`。`MediaDeletionService` 追加 `listTasks(status?, take=100)`，`failing = pending 且 attempts>0`；`MediaController` 新增两个 admin 端点，鉴权沿用 RolesGuard（匿名 401、visitor/owner 403）。
 
 **Acceptance Criteria:**
-- [ ] AC1: presign key 带 `tmp/` 前缀；confirm 后返回的 `mediaRef` 不含 `tmp/`，且 R2 调用顺序为 HeadObject→GetObject→CopyObject→DeleteObject。
-- [ ] AC2: 非 `tmp/photos/` key 的 confirm 返回 400；拷贝失败返回 422 且不返回 mediaRef/readUrl。
-- [ ] AC3: 任务列表/重试接口匿名 401、visitor/owner 403、admin 200；列表字段含 key/status/attempts/lastError/nextAttemptAt/doneAt；retry 返回 `{processed,succeeded,failed}`。
-- [ ] AC4: 受影响既有测试全部更新并通过；全仓 server 测试退出码 0。
+- [x] AC1: presign key 带 `tmp/` 前缀；confirm 后返回的 `mediaRef` 不含 `tmp/`，且 R2 调用顺序为 HeadObject→GetObject→CopyObject→DeleteObject。
+- [x] AC2: 非 `tmp/photos/` key 的 confirm 返回 400；拷贝失败返回 422 且不返回 mediaRef/readUrl。
+- [x] AC3: 任务列表/重试接口匿名 401、visitor/owner 403、admin 200；列表字段含 key/status/attempts/lastError/nextAttemptAt/doneAt；retry 返回 `{processed,succeeded,failed}`。
+- [x] AC4: 受影响既有测试全部更新并通过；全仓 server 测试退出码 0。
 
 **Execution:**
 - **Status:** done | **Commit SHA:** dccf2a0 | **Attempts:** 1 | **Blocked Reason:** null | **Red Result:** FAIL 符合预期 — 端点不存在、tmp staging 行为未实现（19 用例失败，145 通过） | **Verify Result:** PASS — Server 16 文件 164/164，server build 退出 0（2026-07-21 WSL） | **AC Result:** 4/4 通过
 
 **Task Completion Gate:**
-- [ ] Red Result exists and passed
-- [ ] Verify Result exists and passed
-- [ ] AC Result: 4/4 passed
-- [ ] Commit SHA belongs to this task only
+- [x] Red Result exists and passed
+- [x] Verify Result exists and passed
+- [x] AC Result: 4/4 passed
+- [x] Commit SHA belongs to this task only
 
 **Step 1: Red**
 
@@ -281,9 +281,9 @@ Run: `pnpm --filter @secret-space/server test`（前缀同 Red）。Expected: **
 部署清单追加「R2 生命周期规则：`tmp/` 前缀对象 1 天后过期」配置与 curl 验证步骤；执行全仓构建与测试作为跨层验收；按规则收口 tracker 与 worklog。
 
 **Acceptance Criteria:**
-- [ ] AC1: 部署清单包含 tmp/ lifecycle 规则与验证命令。
-- [ ] AC2: WSL 内 `pnpm build` 与 `pnpm test` 均退出 0（fresh 输出入 worklog）。
-- [ ] AC3: DR-002 完成标准逐项可判定通过。
+- [x] AC1: 部署清单包含 tmp/ lifecycle 规则与验证命令。
+- [x] AC2: WSL 内 `pnpm build` 与 `pnpm test` 均退出 0（fresh 输出入 worklog）。
+- [x] AC3: DR-002 完成标准逐项可判定通过。
 
 **Execution:**
 - **Status:** done | **Commit SHA:** 见本任务收口提交（git log 顶部） | **Attempts:** 1 | **Blocked Reason:** null | **Red Result:** 不适用（文档与验收收口任务） | **Verify Result:** PASS — WSL 全仓 `pnpm test` 退出 0（Server 164/164、Admin 11/11、Client 36/36、Shared 1/1，合计 212/212）；`pnpm build` 退出 0（2026-07-21） | **AC Result:** 3/3 通过
@@ -301,7 +301,7 @@ Run: `pnpm --filter @secret-space/server test`（前缀同 Red）。Expected: **
 
 ## Acceptance Criteria（计划级）
 
-- [ ] 规格 5 个 Behavior 的正常与失败路径均有测试证据，全仓测试基线保持绿色。
-- [ ] 删除任务全程不丢失（事务登记 + 持久化重试 + 启动清扫 + 管理端触发）。
-- [ ] 失败可查询（管理端列表），任务 key 只来自持久化引用。
-- [ ] 未确认上传对象经 tmp/ 前缀由桶级 lifecycle 清除，部署项入清单。
+- [x] 规格 5 个 Behavior 的正常与失败路径均有测试证据，全仓测试基线保持绿色。
+- [x] 删除任务全程不丢失（事务登记 + 持久化重试 + 启动清扫 + 管理端触发）。
+- [x] 失败可查询（管理端列表），任务 key 只来自持久化引用。
+- [x] 未确认上传对象经 tmp/ 前缀由桶级 lifecycle 清除，部署项入清单。

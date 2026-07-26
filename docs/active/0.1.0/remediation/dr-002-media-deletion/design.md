@@ -91,7 +91,7 @@ onApplicationBootstrap(): void
 | `confirmUpload(key)` | HeadObject 校验 → 返回 `media://<key>` | 校验后 `CopyObject` 至 `key.slice(4)`（即 `photos/...`），再删除 tmp 对象，返回 `media://<finalKey>` |
 | `POST /media/confirm` 的 key 校验 | 允许 `photos/` 前缀 | 改为只允许 `tmp/photos/` 前缀，且拒绝 `..` |
 
-`confirm` 响应仍为 `{ mediaRef, readUrl, readExpiresIn: 300 }`，Admin 前端无需改动（presign 给什么 key 就回传什么 key，保存的是 confirm 返回的 mediaRef）。
+`confirm` 响应为 `{ uploadReceipt, readUrl, readExpiresIn: 300 }`；Admin 将回执用于对应的照片、封面或页面图片写入，持久化的 `media://` 引用只留在服务端。
 
 ### 业务服务改造
 

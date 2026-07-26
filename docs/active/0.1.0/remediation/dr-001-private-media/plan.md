@@ -1,10 +1,10 @@
 # 私有媒体读取实施计划
 
-**Branch:** main
+**Branch:** codex/dr-001-private-media
 **Baseline SHA:** 178c1d289039fd2044f84149f132d3682dd5cdf0
-**Worktree Path:** /home/yangyang/workspace/codes/YoungerYang/secret-space
+**Worktree Path:** /home/yangyang/workspace/codes/YoungerYang/secret-space/.worktrees/dr-001-private-media
 **Started At:** 2026-07-19
-**Updated At:** 2026-07-19
+**Updated At:** 2026-07-22
 
 **Goal:** 将私密媒体读取改为通过 `MediaStorage` 签发的短期 URL，并用供应商无关的 `media://<logical-key>` 持久化引用。
 **Architecture:** Server 通过 `MediaStorage` seam 提供签名、确认、删除与错误映射，当前由 `R2MediaStorage` adapter 实现。照片、相册和页面只保存逻辑媒体引用；角色校验通过后才向浏览器返回短期读取 URL。
@@ -24,7 +24,20 @@
 - R2 是当前 adapter，业务模块与 Vue 应用不得读取 `R2_*` 环境变量或 AWS SDK 类型。
 - CORS 只允许精确配置的 Origin，禁止 `*`；生产缺少 `STORAGE_DRIVER`、当前 driver 配置或允许 Origin 时拒绝启动。
 - 保留 DR-003 的 JWT 会话迁移、DR-002 的删除重试和 DR-005 的相册模板不变量，不在本计划实现。
-- 全仓 `pnpm test` 当前因 DR-009 的 5 个既有 `SceneManager` mock 失败而退出 1；本计划不得修改这些测试。每个任务运行声明的定向测试与构建，并在最终记录该独立基线。
+- DR-009 已于 2026-07-21 修复；每个任务运行声明的定向测试与构建，并在工作日志记录全仓验证。
+
+## 2026-07-22 审查修正（覆盖旧字段契约）
+
+T1–T6 已在 2026-07-19 完成；此前段落中的 `mediaRef`/`coverRef` 客户端写入契约已被安全审查否决。本次修正不改变持久化的 `media://` 语义，而是增加服务器侧、资源绑定、一次性上传回执：预签名不暴露最终引用；确认响应为 `{ uploadReceipt, readUrl, readExpiresIn: 300 }`；照片写入消费省份绑定的 `uploadReceipt`，相册封面和页面图片消费相册绑定的 `coverUploadReceipt`/`imageReceipts`。回执在业务事务内标记已用，10 分钟后失效；直接提交 `media://`、公开 URL 或重放回执一律不写入。读取签名失败或遇到未迁移旧 URL 时返回不含存储细节的 503，且同一响应内按 logical key 去重签名。
+
+| Task | 实际状态 | Commit |
+|---|---|---|
+| T1 | done | `d2f0699` |
+| T2 | done | `5c6a962` |
+| T3 | done，后续由本次回执修正收紧写入边界 | `88a62c1` |
+| T4 | done | `1775bab` |
+| T5 | done，后续由本次回执修正同步 Admin 请求体 | `8e7ac42` |
+| T6 | done | `0e62646` |
 
 ## Dependency Graph
 
@@ -76,14 +89,14 @@ flowchart TD
 把所有对象存储能力集中到 `MediaStorage`，使业务模块只操作 logical key。`MediaModule` 的 factory 先验证 `STORAGE_DRIVER` 和当前 driver 配置，当前只允许 `r2` 并将 token 绑定到 `R2MediaStorage`；未来只在该 factory 加入新的 adapter。当前 adapter 使用 R2 完成签名、对象确认和删除，但不向调用方泄露 AWS SDK 或 R2 配置。
 
 **Acceptance Criteria:**
-- [ ] 照片上传 key 只能为 `photos/<provinceCode>/...`，相册上传 key 只能为 `photos/album/...`，PUT 签名有效期为 600 秒。
-- [ ] GET 签名有效期为 300 秒；确认只接受 JPEG、PNG、WebP 的对应 magic bytes，并对伪造 Content-Type、超过 10 MiB 或不存在对象返回 422 且不返回 `mediaRef` 或读取 URL。
-- [ ] 定向单元测试通过，并证明 `PhotoModule`、`AlbumModule` 依赖 `MEDIA_STORAGE` 而非 `R2Service`。
-- [ ] `STORAGE_DRIVER=r2` 唯一绑定 `R2MediaStorage`；未知 driver、缺少当前 driver 变量或包含 `*` 的允许 Origin 均在启动前校验失败且错误不泄露凭据。
+- [x] 照片上传 key 只能为 `photos/<provinceCode>/...`，相册上传 key 只能为 `photos/album/...`，PUT 签名有效期为 600 秒。
+- [x] GET 签名有效期为 300 秒；确认只接受 JPEG、PNG、WebP 的对应 magic bytes，并对伪造 Content-Type、超过 10 MiB 或不存在对象返回 422 且不返回内部引用或读取 URL。
+- [x] 定向单元测试通过，并证明 `PhotoModule`、`AlbumModule` 依赖 `MEDIA_STORAGE` 而非 `R2Service`。
+- [x] `STORAGE_DRIVER=r2` 唯一绑定 `R2MediaStorage`；未知 driver、缺少当前 driver 变量或包含 `*` 的允许 Origin 均在启动前校验失败且错误不泄露凭据。
 
 **Execution:**
-- **Status:** pending
-- **Commit SHA:** null
+- **Status:** done
+- **Commit SHA:** d2f0699
 - **Attempts:** 0
 - **Blocked Reason:** null
 - **Red Result:** null
@@ -91,11 +104,11 @@ flowchart TD
 - **AC Result:** null
 
 **Task Completion Gate:**
-- [ ] Red Result exists and passed
-- [ ] Verify Result exists and passed
-- [ ] AC Result: 4/4 passed; any deferred item has a user-approved reason recorded
-- [ ] Commit SHA belongs to this task only
-- [ ] Per-task AC checkbox synced
+- [x] Red Result exists and passed
+- [x] Verify Result exists and passed
+- [x] AC Result: 4/4 passed; any deferred item has a user-approved reason recorded
+- [x] Commit SHA belongs to this task only
+- [x] Per-task AC checkbox synced
 
 **Step 1: Red**
 
@@ -145,13 +158,13 @@ Expected: **PASS**
 只允许保存供应商无关的 `media://` 引用，拒绝 URL、bucket 和错误前缀。迁移脚本将当前 R2 旧地址转换为 logical key，在 dry-run 发现任一坏记录时阻断私有化发布。
 
 **Acceptance Criteria:**
-- [ ] 规范 `media://photos/hunan/x.webp` 可解析；`r2://`、HTTP URL、路径穿越和错误前缀均返回 400。
-- [ ] `media:migrate-legacy-refs -- --dry-run` 输出各实体统计和失败记录标识；有失败时以非零退出且不改数据库。
-- [ ] `--apply` 在事务中写入 `media://` 并记录 `media_reference_migration_v1`；重复执行不改变已迁移记录。
+- [x] 规范 `media://photos/hunan/x.webp` 可解析；`r2://`、HTTP URL、路径穿越和错误前缀均返回 400。
+- [x] `media:migrate-legacy-refs -- --dry-run` 输出各实体统计和失败记录标识；有失败时以非零退出且不改数据库。
+- [x] `--apply` 在事务中写入 `media://` 并记录 `media_reference_migration_v1`；重复执行不改变已迁移记录。
 
 **Execution:**
-- **Status:** pending
-- **Commit SHA:** null
+- **Status:** done
+- **Commit SHA:** 5c6a962
 - **Attempts:** 0
 - **Blocked Reason:** null
 - **Red Result:** null
@@ -159,11 +172,11 @@ Expected: **PASS**
 - **AC Result:** null
 
 **Task Completion Gate:**
-- [ ] Red Result exists and passed
-- [ ] Verify Result exists and passed
-- [ ] AC Result: 3/3 passed; any deferred item has a user-approved reason recorded
-- [ ] Commit SHA belongs to this task only
-- [ ] Per-task AC checkbox synced
+- [x] Red Result exists and passed
+- [x] Verify Result exists and passed
+- [x] AC Result: 3/3 passed; any deferred item has a user-approved reason recorded
+- [x] Commit SHA belongs to this task only
+- [x] Per-task AC checkbox synced
 
 **Step 1: Red**
 
@@ -214,20 +227,20 @@ Expected: **PASS**
 
 **Interfaces:**
 - Consumes: `MediaStorage.confirmUpload(key: string): Promise<ConfirmedUpload>` from T1; `MediaReferenceService.fromMediaRef(input: string, allowedPrefixes: string[]): MediaReference` from T2
-- Produces: `POST /media/confirm { key: string } -> ConfirmedUpload`; `POST /photos { provinceCode: string; mediaRef: MediaReference; annotation?: string; order: number }`; `POST /albums/:id/pages { content.images: MediaReference[] }`; `PUT /pages/:id { content.images: MediaReference[] }`; album writes use `coverRef?: MediaReference`. Existing paths remain unchanged; only persisted URL fields become references.
+- Produces: `POST /media/confirm { key: string } -> { uploadReceipt, readUrl, readExpiresIn: 300 }`; `POST /photos { provinceCode, uploadReceipt, annotation?, order }`; page writes use `content.imageReceipts`; album writes use `coverUploadReceipt?`. Existing paths remain unchanged; only service persistence uses `media://` references.
 
 **Behavior:**
 管理员确认上传后才能保存媒体引用。照片、省份、相册和页面读取只在现有角色校验通过后，把持久化 `media://` 引用转换为 300 秒读取 URL；匿名或失效会话不会得到任何媒体地址。
 
 **Acceptance Criteria:**
-- [ ] `POST /media/confirm`、预签名、照片/相册写入仅允许管理员；访客得到 403，非法对象得到 422。
-- [ ] 匿名照片和相册读取返回 401；访客、所有者、管理员读取同一媒体时返回短期 URL，持久记录保持 `media://`。
-- [ ] 相册空封面/空图片不签名，未知或含 provider 信息的引用返回 400，旧 URL 只可由迁移工具处理。
-- [ ] 无照片省份返回 200、空数组且零媒体 URL；过期或失效会话读取相册列表和页面均返回 401，且不会触发新签名。
+- [x] `POST /media/confirm`、预签名、照片/相册写入仅允许管理员；访客得到 403，非法对象得到 422。
+- [x] 匿名照片和相册读取返回 401；访客、所有者、管理员读取同一媒体时返回短期 URL，持久记录保持 `media://`。
+- [x] 相册空封面/空图片不签名，未知或含 provider 信息的引用返回 400，旧 URL 只可由迁移工具处理。
+- [x] 无照片省份返回 200、空数组且零媒体 URL；过期或失效会话读取相册列表和页面均返回 401，且不会触发新签名。
 
 **Execution:**
-- **Status:** pending
-- **Commit SHA:** null
+- **Status:** done
+- **Commit SHA:** 88a62c1
 - **Attempts:** 0
 - **Blocked Reason:** null
 - **Red Result:** null
@@ -235,11 +248,11 @@ Expected: **PASS**
 - **AC Result:** null
 
 **Task Completion Gate:**
-- [ ] Red Result exists and passed
-- [ ] Verify Result exists and passed
-- [ ] AC Result: 4/4 passed; any deferred item has a user-approved reason recorded
-- [ ] Commit SHA belongs to this task only
-- [ ] Per-task AC checkbox synced
+- [x] Red Result exists and passed
+- [x] Verify Result exists and passed
+- [x] AC Result: 4/4 passed; any deferred item has a user-approved reason recorded
+- [x] Commit SHA belongs to this task only
+- [x] Per-task AC checkbox synced
 
 **Step 1: Red**
 
@@ -250,7 +263,7 @@ Expected: **FAIL** — 新 API 和私有媒体断言尚不存在。
 
 **Step 2: Green**
 
-实现受 RolesGuard 保护的确认端点。DTO 改为 `mediaRef`/`coverRef`，服务端先验证引用和前缀再持久化；读取路径在返回前批量转换引用，不把 `media://`、legacy URL 或 provider 配置返回给浏览器。
+实现受 RolesGuard 保护的确认端点。DTO 只接受回执并拒绝 `mediaRef`/`coverRef`，服务端在事务内校验并消费资源范围绑定的回执；读取路径在返回前批量转换持久化引用，不把 `media://`、legacy URL 或 provider 配置返回给浏览器。
 
 **Step 3: Verify**
 
@@ -287,13 +300,13 @@ Expected: **PASS**
 把 T1 已验证的 storage 配置接入真实启动路径，并用其中的精确 Origin 配置 Nest CORS。当前 R2 adapter 的浏览器直传仅允许后台 Origin 和 PUT；未知 Origin 与通配符配置被拒绝。
 
 **Acceptance Criteria:**
-- [ ] `main.ts` 在监听端口前调用 T1 的配置加载器；缺少 `STORAGE_DRIVER`、当前 driver 所需变量或任一允许 Origin 时，生产启动失败且不打印凭据。
-- [ ] 包含 `*` 的 API/R2 Origin 配置被拒绝；精确 Origin 仅启用预期方法和 `Authorization`、`Content-Type` 头。
-- [ ] `.env.example` 说明当前 R2 adapter 配置，但业务接口和持久化引用不含 `R2_*`。
+- [x] `main.ts` 在监听端口前调用 T1 的配置加载器；缺少 `STORAGE_DRIVER`、当前 driver 所需变量或任一允许 Origin 时，生产启动失败且不打印凭据。
+- [x] 包含 `*` 的 API/R2 Origin 配置被拒绝；精确 Origin 仅启用预期方法和 `Authorization`、`Content-Type` 头。
+- [x] `.env.example` 说明当前 R2 adapter 配置，但业务接口和持久化引用不含 `R2_*`。
 
 **Execution:**
-- **Status:** pending
-- **Commit SHA:** null
+- **Status:** done
+- **Commit SHA:** 1775bab
 - **Attempts:** 0
 - **Blocked Reason:** null
 - **Red Result:** null
@@ -301,11 +314,11 @@ Expected: **PASS**
 - **AC Result:** null
 
 **Task Completion Gate:**
-- [ ] Red Result exists and passed
-- [ ] Verify Result exists and passed
-- [ ] AC Result: 3/3 passed; any deferred item has a user-approved reason recorded
-- [ ] Commit SHA belongs to this task only
-- [ ] Per-task AC checkbox synced
+- [x] Red Result exists and passed
+- [x] Verify Result exists and passed
+- [x] AC Result: 3/3 passed; any deferred item has a user-approved reason recorded
+- [x] Commit SHA belongs to this task only
+- [x] Per-task AC checkbox synced
 
 **Step 1: Red**
 
@@ -349,21 +362,21 @@ Expected: **PASS**
 - Modify: `packages/admin/src/views/PageEditor.vue`
 
 **Interfaces:**
-- Consumes: `POST /media/confirm { key: string } -> { mediaRef: string; readUrl: string; readExpiresIn: 300 }` from T3
-- Produces: `uploadAndConfirm(file: File, scope: 'photo' | 'album'): Promise<{ mediaRef: string; readUrl: string }>` in each managed upload flow
+- Consumes: `POST /media/confirm { key: string } -> { uploadReceipt: string; readUrl: string; readExpiresIn: 300 }` from T3
+- Produces: `uploadAndConfirm(file: File, scope: 'photo' | 'album'): Promise<{ uploadReceipt: string; readUrl: string }>` in each managed upload flow
 
 **Behavior:**
-后台先请求上传凭据、上传文件、确认对象，再把 `mediaRef` 提交给照片、封面或页面保存接口。后台预览与前台 `PhotoPanel`、`AlbumViewer` 都只消费服务端返回的短期 URL；它们不读取或提交 `publicUrl`。
+后台先请求上传凭据、上传文件、确认对象，再把 `uploadReceipt` 提交给照片、封面或页面保存接口。后台预览与前台 `PhotoPanel`、`AlbumViewer` 都只消费服务端返回的短期 URL；它们不读取或提交 `publicUrl` 或 `media://`。
 
 **Acceptance Criteria:**
-- [ ] 照片、封面、页面图片三条上传路径均按 presign → PUT → confirm → save 顺序调用，并只保存 `mediaRef`。
-- [ ] 管理后台预览使用 `readUrl`；请求体和 Pinia/Vue state 不包含 `publicUrl` 或 `r2://`。
-- [ ] 对确认失败显示错误且不发出创建/更新请求。
-- [ ] Client 的照片面板和相册查看器将受保护 API 返回的短期 URL 传给图片元素，不自行生成或持久化 URL。
+- [x] 照片、封面、页面图片三条上传路径均按 presign → PUT → confirm → save 顺序调用，并只提交一次性上传回执。
+- [x] 管理后台预览使用 `readUrl`；请求体和 Pinia/Vue state 不包含 `publicUrl` 或 `r2://`。
+- [x] 对确认失败显示错误且不发出创建/更新请求。
+- [x] Client 的照片面板和相册查看器将受保护 API 返回的短期 URL 传给图片元素，不自行生成或持久化 URL。
 
 **Execution:**
-- **Status:** pending
-- **Commit SHA:** null
+- **Status:** done
+- **Commit SHA:** 8e7ac42
 - **Attempts:** 0
 - **Blocked Reason:** null
 - **Red Result:** null
@@ -371,11 +384,11 @@ Expected: **PASS**
 - **AC Result:** null
 
 **Task Completion Gate:**
-- [ ] Red Result exists and passed
-- [ ] Verify Result exists and passed
-- [ ] AC Result: 4/4 passed; any deferred item has a user-approved reason recorded
-- [ ] Commit SHA belongs to this task only
-- [ ] Per-task AC checkbox synced
+- [x] Red Result exists and passed
+- [x] Verify Result exists and passed
+- [x] AC Result: 4/4 passed; any deferred item has a user-approved reason recorded
+- [x] Commit SHA belongs to this task only
+- [x] Per-task AC checkbox synced
 
 **Step 1: Red**
 
@@ -386,7 +399,7 @@ Expected: **FAIL** — 当前上传流程未确认对象。
 
 **Step 2: Green**
 
-以最小本地状态保存 `mediaRef` 与 `readUrl` 的不同职责：前者提交，后者预览。前台继续透传 API 返回的短期 URL 给图片元素。保留原有压缩、排序和编辑行为，不改动模板渲染或会话存储。
+以最小本地状态保存 `uploadReceipt` 与 `readUrl` 的不同职责：前者仅用于一次保存，后者仅用于预览。前台继续透传 API 返回的短期 URL 给图片元素。保留原有压缩、排序和编辑行为，不改动模板渲染或会话存储。
 
 **Step 3: Verify**
 
@@ -394,7 +407,7 @@ Run: `COREPACK_HOME=/tmp/secret-space-corepack TMPDIR=/tmp TMP=/tmp TEMP=/tmp pn
 Expected: **PASS**
 
 **AC Verification:**
-- AC1: 三个单测断言精确请求顺序和 `mediaRef` 保存 → 通过。
+- AC1: 三个单测断言精确请求顺序和 `uploadReceipt` 保存 → 通过。
 - AC2: 三个单测断言 confirm 失败时不保存 → 通过。
 - AC3: `pnpm --filter @secret-space/admin build` → 退出 0。
 - AC4: Client 组件测试断言短期 URL 直接成为图片 `src`，且不构造 provider URL → 通过。
@@ -423,13 +436,13 @@ Expected: **PASS**
 把私有桶、精确 CORS、历史引用迁移、SQLite 回滚和未来 provider 双读切换写成可执行部署清单。跨层验收确认授权 API、Admin 保存与迁移工具共同遵守 `media://` 契约。
 
 **Acceptance Criteria:**
-- [ ] 清单包含运行前备份、dry-run 零失败门槛、R2 CORS OPTIONS 验收、匿名直连非 2xx、apply、回滚和 30 天 provider 回退步骤。
-- [ ] Server 集成测试验证匿名无法获得媒体 URL，授权角色可以获得签名 URL，管理端保存后再次读取仍可显示媒体。
-- [ ] 运行 server/admin/client 构建；根 `pnpm test` 的结果记录在工作日志，且仅保留 DR-009 已知的 5 个 SceneManager 失败。
+- [x] 清单包含运行前备份、dry-run 零失败门槛、R2 CORS OPTIONS 验收、匿名直连非 2xx、apply、回滚和 30 天 provider 回退步骤。
+- [x] Server 集成测试验证匿名无法获得媒体 URL，授权角色可以获得签名 URL，管理端保存后再次读取仍可显示媒体。
+- [x] 运行 server/admin/client 构建；根 `pnpm test` 的结果记录在工作日志，且仅保留 DR-009 已知的 5 个 SceneManager 失败。
 
 **Execution:**
-- **Status:** pending
-- **Commit SHA:** null
+- **Status:** done
+- **Commit SHA:** 0e62646
 - **Attempts:** 0
 - **Blocked Reason:** null
 - **Red Result:** null
@@ -437,11 +450,11 @@ Expected: **PASS**
 - **AC Result:** null
 
 **Task Completion Gate:**
-- [ ] Red Result exists and passed
-- [ ] Verify Result exists and passed
-- [ ] AC Result: 3/3 passed; any deferred item has a user-approved reason recorded
-- [ ] Commit SHA belongs to this task only
-- [ ] Per-task AC checkbox synced
+- [x] Red Result exists and passed
+- [x] Verify Result exists and passed
+- [x] AC Result: 3/3 passed; any deferred item has a user-approved reason recorded
+- [x] Commit SHA belongs to this task only
+- [x] Per-task AC checkbox synced
 
 **Step 1: Red**
 
@@ -472,8 +485,8 @@ Expected: Server integration and build **PASS**; root test retains only the docu
 
 ## Acceptance Criteria
 
-- [ ] AC1: 管理员上传 JPEG、PNG 或 WebP 后，经确认保存为 `media://` 引用；访客、所有者和管理员能通过受保护 API 看到 300 秒读取 URL，匿名者得到 401。
-- [ ] AC2: 非管理员、伪造类型、超 10 MiB、错误文件头、未知 provider/路径引用均不能得到可保存引用或媒体读取 URL。
-- [ ] AC3: 当前 R2 adapter 私有且只允许精确 Origin 上传；缺失或通配 CORS/driver 配置时服务拒绝启动。
-- [ ] AC4: 历史 URL dry-run 零失败后可幂等迁移为 `media://`；未来切换 driver 不修改业务表、Client/Admin API 或逻辑媒体引用。
-- [ ] AC5: 所有 DR-001 任务拥有独立 commit、定向测试和构建证据；根测试中的唯一剩余失败属于已登记的 DR-009。
+- [x] AC1: 管理员上传 JPEG、PNG 或 WebP 后，经确认保存为 `media://` 引用；访客、所有者和管理员能通过受保护 API 看到 300 秒读取 URL，匿名者得到 401。
+- [x] AC2: 非管理员、伪造类型、超 10 MiB、错误文件头、未知 provider/路径引用均不能得到可保存引用或媒体读取 URL。
+- [x] AC3: 当前 R2 adapter 私有且只允许精确 Origin 上传；缺失或通配 CORS/driver 配置时服务拒绝启动。
+- [x] AC4: 历史 URL dry-run 零失败后可幂等迁移为 `media://`；未来切换 driver 不修改业务表、Client/Admin API 或逻辑媒体引用。
+- [x] AC5: 所有 DR-001 任务拥有独立 commit、定向测试和构建证据；根测试中的唯一剩余失败属于已登记的 DR-009。
