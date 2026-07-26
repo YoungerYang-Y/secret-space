@@ -2,6 +2,7 @@ import { Module } from '@nestjs/common'
 import { MEDIA_STORAGE } from './media-storage'
 import { MediaReferenceService } from './media-reference.service'
 import { MediaDeletionService } from './media-deletion.service'
+import { MediaUploadReceiptService } from './media-upload-receipt.service'
 import { MediaController } from './media.controller'
 import { R2MediaStorage } from './r2-media-storage'
 import { PrismaModule } from '../prisma/prisma.module'
@@ -27,7 +28,8 @@ import { loadStorageConfig } from '../config/storage-config'
     },
     MediaReferenceService,
     MediaDeletionService,
+    MediaUploadReceiptService,
   ],
-  exports: [MEDIA_STORAGE, MediaReferenceService, MediaDeletionService],
+  exports: [MEDIA_STORAGE, MediaReferenceService, MediaDeletionService, MediaUploadReceiptService],
 })
 export class MediaModule {}
