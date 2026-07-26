@@ -16,7 +16,7 @@ interface Page {
   id: string
   order: number
   templateId: string
-  content: { images: string[]; previewUrls: string[]; text?: string }
+  content: { images: string[]; previewUrls: string[]; imageReceipts: Array<string | null>; text?: string }
 }
 
 const TEMPLATES = [
@@ -43,9 +43,8 @@ async function fetchPages() {
   pages.value = res.data.map((p: any) => {
     const content = typeof p.content === 'string' ? JSON.parse(p.content) : p.content
     // Ensure previewUrls exists for display (server returns signed URLs in images for existing pages)
-    if (!content.previewUrls) {
-      content.previewUrls = [...content.images]
-    }
+    content.previewUrls = [...content.images]
+    content.imageReceipts = content.images.map(() => null)
     return { ...p, content }
   })
   if (pages.value.length && !selectedPage.value) {
@@ -70,11 +69,16 @@ async function handleDragEnd() {
 
 async function addPage() {
   const tpl = TEMPLATES.find((t) => t.id === newTemplateId.value)!
-  const content = { images: Array(tpl.slots).fill(''), previewUrls: Array(tpl.slots).fill(''), text: '' }
+  const content = {
+    images: Array(tpl.slots).fill(''),
+    previewUrls: Array(tpl.slots).fill(''),
+    imageReceipts: Array(tpl.slots).fill(''),
+    text: '',
+  }
   try {
     await axios.post(`/albums/${albumId.value}/pages`, {
       templateId: newTemplateId.value,
-      content: { images: content.images, text: content.text },
+      content: { imageReceipts: content.imageReceipts, text: content.text },
       order: pages.value.length + 1,
     }, { headers: getHeaders() })
     addDialogVisible.value = false
@@ -89,10 +93,14 @@ async function addPage() {
 async function savePage() {
   if (!selectedPage.value) return
   try {
-    await axios.put(`/pages/${selectedPage.value.id}`, {
+    const res = await axios.put(`/pages/${selectedPage.value.id}`, {
       templateId: selectedPage.value.templateId,
-      content: { images: selectedPage.value.content.images, text: selectedPage.value.content.text },
+      content: { imageReceipts: selectedPage.value.content.imageReceipts, text: selectedPage.value.content.text },
     }, { headers: getHeaders() })
+    const content = typeof res.data.content === 'string' ? JSON.parse(res.data.content) : res.data.content
+    selectedPage.value.content.images = content.images
+    selectedPage.value.content.previewUrls = [...content.images]
+    selectedPage.value.content.imageReceipts = content.images.map(() => null)
     ElMessage.success('保存成功')
   } catch {
     ElMessage.error('保存失败')
@@ -126,12 +134,12 @@ async function uploadImage(file: File, index: number) {
     // Step 2: PUT to presigned URL
     await fetch(uploadUrl, { method: 'PUT', body: compressed, headers: { 'Content-Type': 'image/webp' } })
 
-    // Step 3: Confirm upload to get mediaRef and readUrl
+    // Step 3: Confirm upload to get an opaque receipt and short-lived preview
     const confirmRes = await axios.post('/media/confirm', { key }, { headers: getHeaders() })
-    const { mediaRef, readUrl } = confirmRes.data
+    const { uploadReceipt, readUrl } = confirmRes.data
 
-    // Step 4: Update state - images stores mediaRef, previewUrls stores readUrl
-    selectedPage.value.content.images[index] = mediaRef
+    // Step 4: Keep the receipt only until the save succeeds; previews are short-lived URLs.
+    selectedPage.value.content.imageReceipts[index] = uploadReceipt
     selectedPage.value.content.previewUrls[index] = readUrl
 
     // Step 5: Save page
@@ -150,9 +158,11 @@ watch(() => selectedPage.value?.templateId, (newId, oldId) => {
   const slots = getSlotCount(newId)
   selectedPage.value.content.images = selectedPage.value.content.images.slice(0, slots)
   selectedPage.value.content.previewUrls = selectedPage.value.content.previewUrls.slice(0, slots)
+  selectedPage.value.content.imageReceipts = selectedPage.value.content.imageReceipts.slice(0, slots)
   while (selectedPage.value.content.images.length < slots) {
     selectedPage.value.content.images.push('')
     selectedPage.value.content.previewUrls.push('')
+    selectedPage.value.content.imageReceipts.push(null)
   }
   if (selectedPage.value.content.images.some(Boolean)) savePage()
 })

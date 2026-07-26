@@ -20,7 +20,7 @@ interface Album {
 const albums = ref<Album[]>([])
 const dialogVisible = ref(false)
 const editingAlbum = ref<Album | null>(null)
-const form = ref({ year: new Date().getFullYear(), title: '', coverRef: '', coverPreviewUrl: '' })
+const form = ref({ year: new Date().getFullYear(), title: '', coverUploadReceipt: '', coverPreviewUrl: '' })
 const submitting = ref(false)
 
 function getHeaders() {
@@ -34,7 +34,7 @@ async function fetchAlbums() {
 
 function openCreate() {
   editingAlbum.value = null
-  form.value = { year: new Date().getFullYear(), title: '', coverRef: '', coverPreviewUrl: '' }
+  form.value = { year: new Date().getFullYear(), title: '', coverUploadReceipt: '', coverPreviewUrl: '' }
   dialogVisible.value = true
 }
 
@@ -43,7 +43,7 @@ function openEdit(album: Album) {
   form.value = {
     year: album.year,
     title: album.title || '',
-    coverRef: '',
+    coverUploadReceipt: '',
     coverPreviewUrl: album.coverUrl || '',
   }
   dialogVisible.value = true
@@ -54,8 +54,8 @@ async function handleSubmit() {
   submitting.value = true
   try {
     const payload: Record<string, any> = { year: form.value.year, title: form.value.title }
-    if (form.value.coverRef) {
-      payload.coverRef = form.value.coverRef
+    if (form.value.coverUploadReceipt) {
+      payload.coverUploadReceipt = form.value.coverUploadReceipt
     }
     if (editingAlbum.value) {
       await axios.put(`/albums/${editingAlbum.value.id}`, payload, { headers: getHeaders() })
@@ -104,12 +104,12 @@ async function handleCoverUpload(file: File) {
     // Step 2: PUT to presigned URL
     await fetch(uploadUrl, { method: 'PUT', body: compressed, headers: { 'Content-Type': 'image/webp' } })
 
-    // Step 3: Confirm upload to get mediaRef and readUrl
+    // Step 3: Confirm upload to get an opaque receipt and short-lived preview
     const confirmRes = await axios.post('/media/confirm', { key }, { headers: getHeaders() })
-    const { mediaRef, readUrl } = confirmRes.data
+    const { uploadReceipt, readUrl } = confirmRes.data
 
     // Step 4: Update form state
-    form.value.coverRef = mediaRef
+    form.value.coverUploadReceipt = uploadReceipt
     form.value.coverPreviewUrl = readUrl
     ElMessage.success('封面已上传')
   } catch {

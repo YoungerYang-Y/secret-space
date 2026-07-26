@@ -38,13 +38,13 @@ describe('PhotoManage upload flow', () => {
     mockAxios.get.mockResolvedValue({ data: [] })
   })
 
-  it('AC1: 上传按 presign → PUT → confirm → save 顺序，并只保存 mediaRef', async () => {
+  it('AC1: 上传按 presign → PUT → confirm → save 顺序，并只保存 uploadReceipt', async () => {
     mockAxios.post
       .mockResolvedValueOnce({
         data: { uploadUrl: 'https://r2.example.com/upload?token=abc', key: 'photos/hunan/123.webp', uploadExpiresIn: 600 },
       }) // presign
       .mockResolvedValueOnce({
-        data: { mediaRef: 'media://photos/hunan/123.webp', readUrl: 'https://r2.example.com/read/123.webp?sig=xyz', readExpiresIn: 300 },
+        data: { uploadReceipt: 'receipt-photo-123', readUrl: 'https://r2.example.com/read/123.webp?sig=xyz', readExpiresIn: 300 },
       }) // confirm
       .mockResolvedValueOnce({ data: { id: 1 } }) // save photo
 
@@ -81,10 +81,10 @@ describe('PhotoManage upload flow', () => {
       expect.objectContaining({ headers: expect.any(Object) }),
     )
 
-    // Verify save uses mediaRef (not publicUrl)
+    // Verify save uses the opaque receipt (not a storage reference or public URL)
     expect(mockAxios.post).toHaveBeenCalledWith(
       '/photos',
-      expect.objectContaining({ provinceCode: 'hunan', mediaRef: 'media://photos/hunan/123.webp', order: 0 }),
+      expect.objectContaining({ provinceCode: 'hunan', uploadReceipt: 'receipt-photo-123', order: 0 }),
       expect.objectContaining({ headers: expect.any(Object) }),
     )
   })
@@ -95,7 +95,7 @@ describe('PhotoManage upload flow', () => {
         data: { uploadUrl: 'https://r2.example.com/upload', key: 'photos/hunan/456.webp', uploadExpiresIn: 600 },
       })
       .mockResolvedValueOnce({
-        data: { mediaRef: 'media://photos/hunan/456.webp', readUrl: 'https://r2.example.com/read/456.webp?sig=abc', readExpiresIn: 300 },
+        data: { uploadReceipt: 'receipt-photo-456', readUrl: 'https://r2.example.com/read/456.webp?sig=abc', readExpiresIn: 300 },
       })
       .mockResolvedValueOnce({ data: { id: 2 } })
 
@@ -116,7 +116,8 @@ describe('PhotoManage upload flow', () => {
     const savePayload = saveCalls[0][1]
     expect(savePayload).not.toHaveProperty('publicUrl')
     expect(savePayload).not.toHaveProperty('url')
-    expect(savePayload).toHaveProperty('mediaRef')
+    expect(savePayload).toHaveProperty('uploadReceipt')
+    expect(JSON.stringify(savePayload)).not.toContain('media://')
   })
 
   it('AC3: 确认失败时显示错误且不发出保存请求', async () => {

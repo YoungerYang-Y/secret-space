@@ -46,14 +46,14 @@ async function handleUpload(file: File) {
       headers: { 'Content-Type': file.type },
     })
 
-    // Step 3: Confirm upload to get mediaRef and readUrl
+    // Step 3: Confirm upload to get an opaque receipt
     const confirmRes = await axios.post('/media/confirm', { key }, { headers: headers() })
-    const { mediaRef } = confirmRes.data
+    const { uploadReceipt } = confirmRes.data
 
-    // Step 4: Save photo with mediaRef only
+    // Step 4: Save photo with the confirmed upload receipt
     await axios.post('/photos', {
       provinceCode: code,
-      mediaRef,
+      uploadReceipt,
       order: photos.value.length,
     }, { headers: headers() })
 
