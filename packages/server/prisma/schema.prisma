@@ -81,3 +81,13 @@ model MediaUploadReceipt {
 
   @@index([expiresAt])
 }
+
+model Session {
+  id        String   @id
+  role      String
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+
+  @@index([expiresAt])
+  @@index([role])
+}
