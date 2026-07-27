@@ -514,26 +514,26 @@ Expected: **PASS** — 全仓测试通过
 创建部署检查清单，包含 NODE_ENV 环境变量说明（控制 Cookie Secure）、Session 表迁移、双认证模式说明（Admin Cookie + Client Bearer Token）。更新 tracker 状态为 done。记录实施日志到 worklog。更新 .env.example 添加说明。
 
 **Acceptance Criteria:**
-- [ ] AC1: deployment-checklist.md 包含：NODE_ENV 配置说明（生产 production → Secure=true）、prisma migrate 步骤、双认证模式说明、admin max 5 session 说明
-- [ ] AC2: tracker.md 中 DR-003 状态更新为 done
-- [ ] AC3: .env.example 包含 NODE_ENV 说明，显眼标注本地开发需设为 development
-- [ ] AC4: pnpm build 全仓构建通过
+- [x] AC1: deployment-checklist.md 包含：NODE_ENV 配置说明（生产 production → Secure=true）、prisma migrate 步骤、双认证模式说明、admin max 5 session 说明
+- [x] AC2: tracker.md 中 DR-003 状态更新为 verified
+- [x] AC3: .env.example 包含 NODE_ENV 说明，显眼标注本地开发需设为 development
+- [x] AC4: pnpm build 全仓构建通过
 
 **Execution:**
-- **Status:** in_progress
-- **Commit SHA:** null
+- **Status:** done
+- **Commit SHA:** 68a3a15
 - **Attempts:** 1
 - **Blocked Reason:** null
-- **Red Result:** null
-- **Verify Result:** null
-- **AC Result:** null
+- **Red Result:** { "commands": [{"cmd": "test ! -f deployment-checklist.md", "confirmed": true, "evidence": "文件不存在"}] }
+- **Verify Result:** { "commands": [{"cmd": "pnpm build", "status": "pass", "evidence": "全仓构建通过"}] }
+- **AC Result:** { "pass": 4, "total": 4, "deferred": [] }
 
 **Task Completion Gate:**
-- [ ] Red Result exists and passed
-- [ ] Verify Result exists and passed
-- [ ] AC Result: 4/4 passed; any deferred item has a user-approved reason recorded
-- [ ] Commit SHA belongs to this task only (final-record-exception)
-- [ ] Per-task AC checkbox synced
+- [x] Red Result exists and passed
+- [x] Verify Result exists and passed
+- [x] AC Result: 4/4 passed; any deferred item has a user-approved reason recorded
+- [x] Commit SHA belongs to this task only
+- [x] Per-task AC checkbox synced
 
 **Step 1: Red**
 
