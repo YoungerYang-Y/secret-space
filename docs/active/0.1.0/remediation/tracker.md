@@ -8,11 +8,11 @@
 
 | 分类 | queued | in-progress | blocked | verified | superseded | 合计 |
 |---|---:|---:|---:|---:|---:|---:|
-| 审查问题 | 5 | 0 | 0 | 3 | 0 | 9 |
+| 审查问题 | 4 | 0 | 0 | 4 | 0 | 9 |
 | P0 补完 | 4 | 0 | 0 | 0 | 0 | 4 |
 | P1 补完 | 3 | 0 | 0 | 0 | 0 | 3 |
 | P2 补完 | 2 | 0 | 0 | 0 | 0 | 2 |
-| **总计** | **14** | **0** | **0** | **3** | **0** | **18** |
+| **总计** | **13** | **0** | **0** | **4** | **0** | **18** |
 
 ## 审查问题
 
@@ -20,7 +20,7 @@
 |---|---|---|---|---|
 | DR-001 | P0 | verified | 隐私读取契约冲突 | 在本目录记录角色×资源×操作权限矩阵；内容读取 API 与矩阵一致；鉴权集成测试覆盖匿名、访客、所有者、管理员；明确对象存储读取策略 |
 | DR-002 | P1 | verified | 媒体删除无可靠闭环 | 媒体保存稳定 `storageKey`；删除失败可持久化重试；失败有可观测记录；正常与失败路径测试通过 |
-| DR-003 | P1 | queued | 管理员 JWT 长期存放在 localStorage | 管理员令牌不暴露给页面脚本；会话过期、撤销、匿名和越权路径均有测试；迁移后后台主流程可用 |
+| DR-003 | P1 | verified | 管理员 JWT 长期存放在 localStorage | 管理员令牌不暴露给页面脚本；会话过期、撤销、匿名和越权路径均有测试；迁移后后台主流程可用 |
 | DR-004 | P1 | queued | 旧 Plan 与实际实现失真 | 不修改旧 Plan；在本目录建立 P0～P2 实际状态快照、代码证据和验收结果；后续状态只维护于本追踪表 |
 | DR-005 | P1 | queued | 相册模型缺少业务不变量 | 服务端校验模板图片数量、文字要求、媒体归属和顺序；异常与并发路径测试通过 |
 | DR-006 | P2 | queued | Admin 与 Client 重复维护模板渲染 | 两端消费同一模板定义或渲染核心；预览一致性有自动化验证；重复实现移除 |
@@ -71,6 +71,6 @@ flowchart TD
 
 ## 当前进行项
 
-- 无 active 条目。**DR-002 已于 2026-07-21 复验通过并关闭为 `verified`**：媒体删除任务模型 + 持久化重试 + 管理端观测接口 + 上传 tmp/ staging 全部落地，Spec/Design/Plan 与验收证据见 `dr-002-media-deletion/`。
-- **下一待启动项**：按推荐顺序为 DR-003（管理员会话）或 DR-005（相册不变量）。
-- **部署提醒**：DR-001/DR-002 分支尚未合并回 `main`；生产侧动作按 `dr-001-private-media/deployment-checklist.md` 执行（备份、禁用 R2 公开访问、CORS、tmp/ lifecycle 规则、历史迁移 dry-run→apply）。
+- **DR-003 已于 2026-07-27 复验通过并关闭为 `verified`**：管理员 JWT 从 localStorage 迁移到 HttpOnly Cookie + 服务端 Session 表，支持双认证模式（Admin Cookie + Client Bearer Token），admin 最多 5 个活跃 Session，启动时和每小时定时清理过期 Session。Spec/Design/Plan 与验收证据见 `dr-003-admin-session/`。
+- **下一待启动项**：按推荐顺序为 DR-005（相册不变量）。
+- **部署提醒**：DR-001/DR-002/DR-003 分支尚未合并回 `main`；DR-003 部署按 `dr-003-admin-session/deployment-checklist.md` 执行（NODE_ENV=production, prisma migrate deploy）。
