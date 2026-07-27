@@ -17,21 +17,24 @@ export class AuthService {
   async verify(password: string, ip: string): Promise<AuthVerifyResponse> {
     const ownerHash = await this.prisma.config.findUnique({ where: { key: 'owner_password_hash' } })
     if (ownerHash && await bcrypt.compare(password, ownerHash.value)) {
-      return { token: this.signToken('owner'), role: 'owner' }
+      return { role: 'owner' }
     }
     const visitorHash = await this.prisma.config.findUnique({ where: { key: 'visitor_password_hash' } })
     if (visitorHash && await bcrypt.compare(password, visitorHash.value)) {
-      return { token: this.signToken('visitor'), role: 'visitor' }
+      return { role: 'visitor' }
     }
     const adminHash = await this.prisma.config.findUnique({ where: { key: 'admin_password_hash' } })
     if (adminHash && await bcrypt.compare(password, adminHash.value)) {
-      return { token: this.signToken('admin'), role: 'admin' }
+      return { role: 'admin' }
     }
     RateLimitGuard.recordFailure(ip)
     throw new UnauthorizedException('密码不对哦')
   }
 
-  private signToken(role: string): string {
+  /**
+   * 为 Client 签发 JWT Token（Bearer Token 认证使用）
+   */
+  signToken(role: string): string {
     return jwt.sign({ role, iat: Math.floor(Date.now() / 1000) }, JWT_SECRET, { expiresIn: '7d' })
   }
 }

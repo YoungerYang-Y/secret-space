@@ -1,5 +1,6 @@
 import { Test } from '@nestjs/testing'
 import { INestApplication, ValidationPipe } from '@nestjs/common'
+import cookieParser from 'cookie-parser'
 import { AppModule } from '../app.module'
 import { MEDIA_STORAGE } from '../media/media-storage'
 import type { MediaStorage } from '../media/media-storage'
@@ -37,6 +38,7 @@ export async function createTestApp(options?: { validation?: boolean }) {
     .compile()
   const app = module.createNestApplication()
   app.setGlobalPrefix('api', { exclude: ['health'] })
+  app.use(cookieParser())
   if (options?.validation !== false) {
     app.useGlobalPipes(new ValidationPipe({ whitelist: true, transform: true }))
   }

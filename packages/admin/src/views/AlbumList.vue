@@ -4,10 +4,8 @@ import axios from 'axios'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { useRouter } from 'vue-router'
 import { compressImage } from '../utils/compress'
-import { useAdminAuthStore } from '../stores/auth'
 
 const router = useRouter()
-const authStore = useAdminAuthStore()
 
 interface Album {
   id: string
@@ -22,10 +20,6 @@ const dialogVisible = ref(false)
 const editingAlbum = ref<Album | null>(null)
 const form = ref({ year: new Date().getFullYear(), title: '', coverUploadReceipt: '', coverPreviewUrl: '' })
 const submitting = ref(false)
-
-function getHeaders() {
-  return { Authorization: `Bearer ${authStore.token}` }
-}
 
 async function fetchAlbums() {
   const res = await axios.get('/albums')
@@ -58,9 +52,9 @@ async function handleSubmit() {
       payload.coverUploadReceipt = form.value.coverUploadReceipt
     }
     if (editingAlbum.value) {
-      await axios.put(`/albums/${editingAlbum.value.id}`, payload, { headers: getHeaders() })
+      await axios.put(`/albums/${editingAlbum.value.id}`, payload)
     } else {
-      await axios.post('/albums', payload, { headers: getHeaders() })
+      await axios.post('/albums', payload)
     }
     dialogVisible.value = false
     await fetchAlbums()
@@ -79,7 +73,7 @@ async function handleDelete(album: Album) {
     return
   }
   try {
-    await axios.delete(`/albums/${album.id}`, { headers: getHeaders() })
+    await axios.delete(`/albums/${album.id}`)
     await fetchAlbums()
     ElMessage.success('删除成功')
   } catch (e: any) {
@@ -97,15 +91,15 @@ async function handleCoverUpload(file: File) {
     const presignRes = await axios.post('/albums/presign', {
       filename: `cover-${Date.now()}.webp`,
       contentType: 'image/webp',
-    }, { headers: getHeaders() })
+    })
 
     const { uploadUrl, key } = presignRes.data
 
-    // Step 2: PUT to presigned URL
+    // Step 2: PUT to presigned URL (不需要 Cookie)
     await fetch(uploadUrl, { method: 'PUT', body: compressed, headers: { 'Content-Type': 'image/webp' } })
 
     // Step 3: Confirm upload to get an opaque receipt and short-lived preview
-    const confirmRes = await axios.post('/media/confirm', { key }, { headers: getHeaders() })
+    const confirmRes = await axios.post('/media/confirm', { key })
     const { uploadReceipt, readUrl } = confirmRes.data
 
     // Step 4: Update form state

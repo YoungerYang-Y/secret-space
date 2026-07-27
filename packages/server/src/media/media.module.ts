@@ -6,10 +6,11 @@ import { MediaUploadReceiptService } from './media-upload-receipt.service'
 import { MediaController } from './media.controller'
 import { R2MediaStorage } from './r2-media-storage'
 import { PrismaModule } from '../prisma/prisma.module'
+import { AuthModule } from '../auth/auth.module'
 import { loadStorageConfig } from '../config/storage-config'
 
 @Module({
-  imports: [PrismaModule],
+  imports: [PrismaModule, AuthModule],
   controllers: [MediaController],
   providers: [
     {

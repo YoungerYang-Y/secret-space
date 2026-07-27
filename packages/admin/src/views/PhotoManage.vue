@@ -4,7 +4,6 @@ import { useRoute, useRouter } from 'vue-router'
 import axios from 'axios'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import draggable from 'vuedraggable'
-import { useAdminAuthStore } from '../stores/auth'
 
 interface Photo {
   id: number
@@ -15,14 +14,9 @@ interface Photo {
 
 const route = useRoute()
 const router = useRouter()
-const authStore = useAdminAuthStore()
 const code = route.params.code as string
 const photos = ref<Photo[]>([])
 const uploading = ref(false)
-
-function headers() {
-  return { Authorization: `Bearer ${authStore.token}` }
-}
 
 async function fetchPhotos() {
   const res = await axios.get(`/provinces/${code}/photos`)
@@ -37,17 +31,18 @@ async function handleUpload(file: File) {
       provinceCode: code,
       filename: file.name,
       contentType: file.type,
-    }, { headers: headers() })
+    })
 
     const { uploadUrl, key } = presignRes.data
 
     // Step 2: PUT file to presigned URL
     await axios.put(uploadUrl, file, {
       headers: { 'Content-Type': file.type },
+      withCredentials: false, // 上传到 R2 不需要 Cookie
     })
 
     // Step 3: Confirm upload to get an opaque receipt
-    const confirmRes = await axios.post('/media/confirm', { key }, { headers: headers() })
+    const confirmRes = await axios.post('/media/confirm', { key })
     const { uploadReceipt } = confirmRes.data
 
     // Step 4: Save photo with the confirmed upload receipt
@@ -55,7 +50,7 @@ async function handleUpload(file: File) {
       provinceCode: code,
       uploadReceipt,
       order: photos.value.length,
-    }, { headers: headers() })
+    })
 
     ElMessage.success('上传成功')
     await fetchPhotos()
@@ -75,21 +70,21 @@ async function updateAnnotation(photo: Photo) {
   const { value } = await ElMessageBox.prompt('编辑标注', '标注', {
     inputValue: photo.annotation || '',
   })
-  await axios.put(`/photos/${photo.id}`, { annotation: value }, { headers: headers() })
+  await axios.put(`/photos/${photo.id}`, { annotation: value })
   photo.annotation = value
   ElMessage.success('已更新')
 }
 
 async function deletePhoto(photo: Photo) {
   await ElMessageBox.confirm('确认删除这张照片？', '删除')
-  await axios.delete(`/photos/${photo.id}`, { headers: headers() })
+  await axios.delete(`/photos/${photo.id}`)
   ElMessage.success('已删除')
   await fetchPhotos()
 }
 
 async function saveOrder() {
   const photoIds = photos.value.map((p) => p.id)
-  await axios.put('/photos/reorder', { provinceCode: code, photoIds }, { headers: headers() })
+  await axios.put('/photos/reorder', { provinceCode: code, photoIds })
   ElMessage.success('排序已保存')
 }
 

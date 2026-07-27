@@ -77,7 +77,6 @@ describe('AlbumList cover upload flow', () => {
     expect(mockAxios.post).toHaveBeenCalledWith(
       '/albums/presign',
       expect.objectContaining({ contentType: 'image/webp' }),
-      expect.objectContaining({ headers: expect.any(Object) }),
     )
 
     // Verify PUT upload via fetch
@@ -90,7 +89,6 @@ describe('AlbumList cover upload flow', () => {
     expect(mockAxios.post).toHaveBeenCalledWith(
       '/media/confirm',
       { key: 'photos/album/cover-123.webp' },
-      expect.objectContaining({ headers: expect.any(Object) }),
     )
 
     // AC2: Preview uses readUrl, form stores only the opaque receipt

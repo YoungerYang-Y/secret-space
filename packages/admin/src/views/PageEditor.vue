@@ -5,11 +5,9 @@ import axios from 'axios'
 import draggable from 'vuedraggable'
 import { ElMessage } from 'element-plus'
 import { compressImage } from '../utils/compress'
-import { useAdminAuthStore } from '../stores/auth'
 import AlbumPreview from '../components/AlbumPreview.vue'
 
 const route = useRoute()
-const authStore = useAdminAuthStore()
 const albumId = computed(() => route.params.id as string)
 
 interface Page {
@@ -34,10 +32,6 @@ const newTemplateId = ref('single')
 const showPreview = ref(false)
 const albumInfo = ref<{ year: number; title: string | null; coverUrl: string | null }>({ year: 2024, title: null, coverUrl: null })
 
-function getHeaders() {
-  return { Authorization: `Bearer ${authStore.token}` }
-}
-
 async function fetchPages() {
   const res = await axios.get(`/albums/${albumId.value}/pages`)
   pages.value = res.data.map((p: any) => {
@@ -61,7 +55,7 @@ async function fetchAlbumInfo() {
 async function handleDragEnd() {
   const pageIds = pages.value.map((p) => p.id)
   try {
-    await axios.put(`/albums/${albumId.value}/pages/reorder`, { pageIds }, { headers: getHeaders() })
+    await axios.put(`/albums/${albumId.value}/pages/reorder`, { pageIds })
   } catch {
     ElMessage.error('排序保存失败')
   }
@@ -80,7 +74,7 @@ async function addPage() {
       templateId: newTemplateId.value,
       content: { imageReceipts: content.imageReceipts, text: content.text },
       order: pages.value.length + 1,
-    }, { headers: getHeaders() })
+    })
     addDialogVisible.value = false
     await fetchPages()
     selectedPage.value = pages.value[pages.value.length - 1]
@@ -96,7 +90,7 @@ async function savePage() {
     const res = await axios.put(`/pages/${selectedPage.value.id}`, {
       templateId: selectedPage.value.templateId,
       content: { imageReceipts: selectedPage.value.content.imageReceipts, text: selectedPage.value.content.text },
-    }, { headers: getHeaders() })
+    })
     const content = typeof res.data.content === 'string' ? JSON.parse(res.data.content) : res.data.content
     selectedPage.value.content.images = content.images
     selectedPage.value.content.previewUrls = [...content.images]
@@ -109,7 +103,7 @@ async function savePage() {
 
 async function deletePage(page: Page) {
   try {
-    await axios.delete(`/pages/${page.id}`, { headers: getHeaders() })
+    await axios.delete(`/pages/${page.id}`)
     if (selectedPage.value?.id === page.id) selectedPage.value = null
     await fetchPages()
     ElMessage.success('已删除')
@@ -127,15 +121,15 @@ async function uploadImage(file: File, index: number) {
     const presignRes = await axios.post('/albums/presign', {
       filename: `page-${Date.now()}.webp`,
       contentType: 'image/webp',
-    }, { headers: getHeaders() })
+    })
 
     const { uploadUrl, key } = presignRes.data
 
-    // Step 2: PUT to presigned URL
+    // Step 2: PUT to presigned URL (不需要 Cookie)
     await fetch(uploadUrl, { method: 'PUT', body: compressed, headers: { 'Content-Type': 'image/webp' } })
 
     // Step 3: Confirm upload to get an opaque receipt and short-lived preview
-    const confirmRes = await axios.post('/media/confirm', { key }, { headers: getHeaders() })
+    const confirmRes = await axios.post('/media/confirm', { key })
     const { uploadReceipt, readUrl } = confirmRes.data
 
     // Step 4: Keep the receipt only until the save succeeds; previews are short-lived URLs.

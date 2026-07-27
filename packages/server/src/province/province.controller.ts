@@ -1,10 +1,11 @@
 import { Controller, Get, Put, Param, Body, UseGuards } from '@nestjs/common'
 import { ProvinceService } from './province.service'
+import { SessionGuard } from '../auth/session.guard'
 import { RolesGuard } from '../auth/roles.guard'
 import { Roles } from '../auth/roles.decorator'
 
 @Controller('provinces')
-@UseGuards(RolesGuard)
+@UseGuards(SessionGuard, RolesGuard)
 export class ProvinceController {
   constructor(private provinceService: ProvinceService) {}
 
