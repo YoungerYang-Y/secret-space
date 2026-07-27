@@ -85,7 +85,6 @@ describe('PageEditor image upload flow', () => {
     expect(mockAxios.post).toHaveBeenCalledWith(
       '/albums/presign',
       expect.objectContaining({ contentType: 'image/webp' }),
-      expect.objectContaining({ headers: expect.any(Object) }),
     )
 
     // Verify PUT via fetch
@@ -98,7 +97,6 @@ describe('PageEditor image upload flow', () => {
     expect(mockAxios.post).toHaveBeenCalledWith(
       '/media/confirm',
       { key: 'photos/album/page-img.webp' },
-      expect.objectContaining({ headers: expect.any(Object) }),
     )
 
     // Verify page save uses the opaque receipt, never a media:// reference
@@ -109,7 +107,6 @@ describe('PageEditor image upload flow', () => {
           imageReceipts: ['receipt-page-img'],
         }),
       }),
-      expect.objectContaining({ headers: expect.any(Object) }),
     )
   })
 

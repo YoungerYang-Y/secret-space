@@ -3,7 +3,6 @@ import { ref, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import axios from 'axios'
 import { ElMessage } from 'element-plus'
-import { useAdminAuthStore } from '../stores/auth'
 
 interface Province {
   code: string
@@ -12,17 +11,12 @@ interface Province {
   photoCount: number
 }
 
-const authStore = useAdminAuthStore()
 const router = useRouter()
 const provinces = ref<Province[]>([])
 const loading = ref(false)
 
 const visitedCount = computed(() => provinces.value.filter(p => p.visited).length)
 const totalPhotos = computed(() => provinces.value.reduce((sum, p) => sum + p.photoCount, 0))
-
-function headers() {
-  return { Authorization: `Bearer ${authStore.token}` }
-}
 
 async function fetchProvinces() {
   loading.value = true
@@ -36,7 +30,7 @@ async function fetchProvinces() {
 
 async function toggleVisited(row: Province) {
   try {
-    await axios.put(`/provinces/${row.code}`, { visited: row.visited }, { headers: headers() })
+    await axios.put(`/provinces/${row.code}`, { visited: row.visited })
     ElMessage.success(`${row.name} ${row.visited ? '已点亮' : '已取消'}`)
   } catch {
     row.visited = !row.visited

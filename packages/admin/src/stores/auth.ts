@@ -3,22 +3,40 @@ import { defineStore } from 'pinia'
 import axios from 'axios'
 
 export const useAdminAuthStore = defineStore('admin-auth', () => {
-  const token = ref<string | null>(localStorage.getItem('admin_token'))
-  const isAuthenticated = computed(() => !!token.value)
+  const role = ref<string | null>(null)
+  const initialized = ref(false)
+
+  const isAuthenticated = computed(() => !!role.value)
 
   async function login(password: string) {
     const res = await axios.post('/auth/verify', { password })
     if (res.data.role !== 'admin') {
       throw new Error('需要管理员权限')
     }
-    token.value = res.data.token
-    localStorage.setItem('admin_token', res.data.token)
+    role.value = res.data.role
+    initialized.value = true
   }
 
-  function logout() {
-    token.value = null
-    localStorage.removeItem('admin_token')
+  async function logout() {
+    await axios.post('/auth/logout', {})
+    role.value = null
+    initialized.value = false
   }
 
-  return { token, isAuthenticated, login, logout }
+  async function initSession(force = false) {
+    if (!force && initialized.value) {
+      return
+    }
+
+    try {
+      const res = await axios.get('/auth/me')
+      role.value = res.data.role
+    } catch {
+      role.value = null
+    } finally {
+      initialized.value = true
+    }
+  }
+
+  return { role, initialized, isAuthenticated, login, logout, initSession }
 })

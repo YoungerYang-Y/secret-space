@@ -4,6 +4,7 @@ import ProvinceList from '../views/ProvinceList.vue'
 import PhotoManage from '../views/PhotoManage.vue'
 import AlbumList from '../views/AlbumList.vue'
 import PageEditor from '../views/PageEditor.vue'
+import { useAdminAuthStore } from '../stores/auth'
 
 export const router = createRouter({
   history: createWebHistory('/admin'),
@@ -17,7 +18,13 @@ export const router = createRouter({
   ],
 })
 
-router.beforeEach((to) => {
-  const token = localStorage.getItem('admin_token')
-  if (!token && to.name !== 'login') return { name: 'login' }
+router.beforeEach(async (to) => {
+  if (to.name === 'login') return
+
+  const authStore = useAdminAuthStore()
+  await authStore.initSession()
+
+  if (!authStore.isAuthenticated) {
+    return { name: 'login' }
+  }
 })

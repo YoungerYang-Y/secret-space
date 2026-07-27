@@ -64,28 +64,25 @@ describe('PhotoManage upload flow', () => {
     expect(mockAxios.post).toHaveBeenCalledWith(
       '/photos/presign',
       expect.objectContaining({ provinceCode: 'hunan', filename: 'test.jpg', contentType: 'image/jpeg' }),
-      expect.objectContaining({ headers: expect.any(Object) }),
     )
 
-    // Verify PUT to uploadUrl
+    // Verify PUT to uploadUrl (withCredentials: false for R2)
     expect(mockAxios.put).toHaveBeenCalledWith(
       'https://r2.example.com/upload?token=abc',
       file,
-      expect.objectContaining({ headers: { 'Content-Type': 'image/jpeg' } }),
+      expect.objectContaining({ headers: { 'Content-Type': 'image/jpeg' }, withCredentials: false }),
     )
 
     // Verify confirm was called with key
     expect(mockAxios.post).toHaveBeenCalledWith(
       '/media/confirm',
       { key: 'photos/hunan/123.webp' },
-      expect.objectContaining({ headers: expect.any(Object) }),
     )
 
     // Verify save uses the opaque receipt (not a storage reference or public URL)
     expect(mockAxios.post).toHaveBeenCalledWith(
       '/photos',
       expect.objectContaining({ provinceCode: 'hunan', uploadReceipt: 'receipt-photo-123', order: 0 }),
-      expect.objectContaining({ headers: expect.any(Object) }),
     )
   })
 
