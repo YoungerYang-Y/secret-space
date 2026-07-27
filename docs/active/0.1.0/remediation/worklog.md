@@ -237,6 +237,48 @@
 
 DR-003 `in-progress` → `verified`。
 
+## 2026-07-27：DR-004 实际状态快照建立
+
+- **追踪 ID**：DR-004
+- **开始状态**：`queued` → `verified`（文档任务，当日完成）。
+- **问题**：旧 Plan 与实际实现失真，P2 所有任务在 Plan 中标记为 pending 但实际已实现。
+
+### 完成内容
+
+创建 `dr-004-plan-snapshot/snapshot.md`，包含：
+1. P0～P2 三个 Plan 共 18 个 Task 的文件存在性验证
+2. 每个 Task 的实际完成状态（已实现/部分实现）
+3. 13 项偏离记录（重构、合并、缺失）
+4. 与 tracker.md GAP 条目的关联
+
+### 核对结果
+
+| Plan | 任务数 | 已实现 | 部分实现 | 偏离项数 |
+|------|--------|--------|----------|----------|
+| P0 Engineering Base | 7 | 5 | 2 | 6 |
+| P1 Map & Photos | 6 | 5 | 1 | 3 |
+| P2 Album | 5 | 3 | 2 | 4 |
+| **总计** | **18** | **13** | **5** | **13** |
+
+### 主要偏离项
+
+- **R2 模块重构**：`r2/r2.service.ts` → `media/r2-media-storage.ts`（DR-001 抽象）
+- **缺失组件**：SwipeNav.vue、BackButton.vue（P0-GAP-002 追踪）
+- **缺失功能**：LoadingOrchestrator.ts（P0-GAP-001 追踪）
+- **Plan 状态失真**：P2 所有任务标记 pending 但实际已实现
+
+### 完成标准核对
+
+1. 不修改旧 Plan ✅ — 原 plan.md 文件保持不变
+2. 在本目录建立 P0～P2 实际状态快照 ✅ — `dr-004-plan-snapshot/snapshot.md`
+3. 代码证据 ✅ — 文件存在性批量验证、构建/测试退出码
+4. 验收结果 ✅ — 核心功能验证表、偏离项汇总
+5. 后续状态只维护于本追踪表 ✅ — 快照声明后续在 tracker.md 追踪
+
+### 状态变化
+
+DR-004 `queued` → `verified`。
+
 ## 记录规范
 
 后续每次实施追加一个以日期和追踪 ID 命名的小节，并按以下顺序记录：
