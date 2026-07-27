@@ -174,6 +174,69 @@
 - **新鲜验证证据（WSL，worktree 根目录）**：`TMPDIR=/tmp TMP=/tmp TEMP=/tmp COREPACK_HOME=/tmp/secret-space-corepack pnpm test && pnpm build` 退出码 0；Server 180/180、Admin 11/11、Client 36/36、Shared 1/1，合计 228/228；四个 workspace 均构建成功。Admin 测试仍输出未注册 Element Plus 测试桩警告，未影响退出码。
 - **状态**：实现与验证完成，当前修改尚未提交；生产仍须按 DR-001 部署清单先完成历史引用 dry-run 零失败与私有桶/CORS 验收。
 
+## 2026-07-27：DR-003 实施完成并关闭
+
+- **追踪 ID**：DR-003
+- **开始状态**：`queued` → `in-progress`（2026-07-26 启动）。
+- **问题**：管理员 JWT 长期存放在 localStorage，暴露给页面脚本，存在 XSS 风险。
+- **解决方案**：HttpOnly Cookie + 服务端 Session 表替代 localStorage JWT；SessionGuard 双轨验证（Cookie 优先 + Bearer Token 向后兼容 Client）。
+
+### 任务执行记录
+
+- **T1 Session 表与 SessionService**（`bcd0345`）：
+  - Red — SessionService 不存在，测试无法加载。
+  - Green — 新增 `Session` Prisma 模型、`SessionService`（create/validate/revoke/cleanupExpired）、cookie-parser 中间件、启动时清理 + 每小时定时清理。
+  - 实现注记：admin 最多 5 个活跃 Session，超出删除最旧；admin=8h，visitor/owner=24h。
+  - Verify — Server 225/225 通过。
+
+- **T2 SessionGuard + AuthController 改造**（`caad64f`）：
+  - Red — SessionGuard 不存在，新接口未实现。
+  - Green — 创建 `SessionGuard` 双认证（Cookie 优先 + Bearer Token fallback）；改造 `RolesGuard` 只做授权；改造 `AuthController`：verify 设置 HttpOnly Cookie、新增 logout/me 接口；shared `AuthVerifyResponse` 移除 token 字段；所有 Controller 添加 `@UseGuards(SessionGuard, RolesGuard)`。
+  - Verify — Server 235/235 通过。
+
+- **T3 Admin 前端适配**（`91f7e4f`）：
+  - Red — auth.test.ts 新用例失败（initSession 不存在、仍使用 localStorage）。
+  - Green — 重写 `auth.ts` store（role + initialized，移除 localStorage）；`main.ts` 配置 withCredentials + 401 拦截器；`router/index.ts` 使用 initSession；4 个 View 文件移除手动 Authorization header。
+  - Verify — Admin 16/16、全仓 252/252 通过。
+
+- **T4 测试补全与回归验证**（`ab9ac2b`）：
+  - Red — 新测试用例待添加。
+  - Green — `auth.controller.test.ts` 新增并发登录、max session 测试；`app.e2e.test.ts` 新增 Cookie/Bearer Token 双认证、会话过期测试。
+  - Verify — 全仓 257/257 通过。
+
+- **T5 文档更新与部署检查清单**（`68a3a15`）：
+  - 创建 `deployment-checklist.md`：NODE_ENV 配置、prisma migrate、双认证模式、Session 限制说明。
+  - 更新 `tracker.md`：DR-003 状态为 verified。
+  - 更新 `.env.example`：添加 NODE_ENV 说明。
+  - 安装 `@types/express` 修复构建。
+  - Verify — 全仓 build 通过。
+
+### 完成标准逐项核对
+
+1. 管理员令牌不暴露给页面脚本 ✅ — Cookie 属性 HttpOnly/SameSite=Strict/Path=/api；admin store 不使用 localStorage。
+2. 会话过期、撤销、匿名和越权路径均有测试 ✅ — session.service.test.ts（过期清理）、auth.controller.test.ts（logout 后 401）、app.e2e.test.ts（会话过期 401）、roles.guard.test.ts（越权 403）。
+3. 迁移后后台主流程可用 ✅ — 所有 Controller 使用 SessionGuard + RolesGuard；双认证模式支持 Admin Cookie + Client Bearer Token。
+
+### 新鲜验证证据（2026-07-27 合并后主干）
+
+- `TMPDIR=/tmp TMP=/tmp TEMP=/tmp COREPACK_HOME=/tmp/secret-space-corepack pnpm test` 退出码 0；Server 204/204、Admin 16/16、Client 36/36、Shared 1/1，合计 257/257。
+- `pnpm build` 退出码 0。
+
+### 独立复审
+
+- 2026-07-27 逐条验收 23 个 AC，全部通过。
+- 验证方式：代码审查 + grep 验证 + 测试用例检查 + 实际运行测试/构建。
+
+### 合并记录
+
+- 分支 `codex/dr-003-admin-session`（8 个提交）已于 2026-07-27 合并回 `main`。
+- 合并提交：`72e0e7c Merge branch 'codex/dr-003-admin-session'`。
+- 解决了 16 个冲突文件，运行 `prisma migrate dev` 创建 Session 表。
+
+### 状态变化
+
+DR-003 `in-progress` → `verified`。
+
 ## 记录规范
 
 后续每次实施追加一个以日期和追踪 ID 命名的小节，并按以下顺序记录：

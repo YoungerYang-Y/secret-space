@@ -71,6 +71,9 @@ flowchart TD
 
 ## 当前进行项
 
-- **DR-003 已于 2026-07-27 复验通过并关闭为 `verified`**：管理员 JWT 从 localStorage 迁移到 HttpOnly Cookie + 服务端 Session 表，支持双认证模式（Admin Cookie + Client Bearer Token），admin 最多 5 个活跃 Session，启动时和每小时定时清理过期 Session。Spec/Design/Plan 与验收证据见 `dr-003-admin-session/`。
+- **DR-001/DR-002/DR-003 均已合并回 `main`**，验收通过。
 - **下一待启动项**：按推荐顺序为 DR-005（相册不变量）。
-- **部署提醒**：DR-001/DR-002/DR-003 分支尚未合并回 `main`；DR-003 部署按 `dr-003-admin-session/deployment-checklist.md` 执行（NODE_ENV=production, prisma migrate deploy）。
+- **部署提醒**：生产部署按各 `deployment-checklist.md` 执行：
+  - DR-001: 备份、禁用 R2 公开访问、CORS、tmp/ lifecycle 规则、历史迁移
+  - DR-002: 媒体删除任务模型已就绪
+  - DR-003: NODE_ENV=production, prisma migrate deploy
