@@ -57,6 +57,61 @@ describe('PhotoPanel', () => {
     expect(wrapper.text()).toContain('还没有照片')
   })
 
+  it('展示当前省份标题', async () => {
+    const wrapper = mount(PhotoPanel, {
+      props: { provinceCode: 'hunan', provinceName: '湖南', originRect: null },
+    })
+    await flushPromises()
+    expect(wrapper.text()).toContain('湖南')
+  })
+
+  it('请求失败时显示错误状态而不是空状态', async () => {
+    vi.mocked(global.fetch).mockResolvedValueOnce({ ok: false, json: () => Promise.resolve({}) } as Response)
+    const wrapper = mount(PhotoPanel, { props: { provinceCode: 'hunan', originRect: null } })
+    await flushPromises()
+    expect(wrapper.text()).toContain('照片加载失败')
+    expect(wrapper.text()).not.toContain('还没有照片')
+  })
+
+  it('省份切换后忽略先前请求的延迟响应', async () => {
+    let resolveHunan!: (response: Response) => void
+    vi.mocked(global.fetch)
+      .mockImplementationOnce(() => new Promise<Response>((resolve) => { resolveHunan = resolve }))
+      .mockResolvedValueOnce({
+        ok: true,
+        json: () => Promise.resolve([{ id: 3, url: 'guangxi.jpg', annotation: null, order: 1 }]),
+      } as Response)
+    const wrapper = mount(PhotoPanel, { props: { provinceCode: 'hunan', originRect: null } })
+    await wrapper.setProps({ provinceCode: 'guangxi' })
+    await flushPromises()
+    resolveHunan({ ok: true, json: () => Promise.resolve(mockPhotos) } as Response)
+    await flushPromises()
+
+    expect(wrapper.findAll('img')).toHaveLength(1)
+    expect(wrapper.find('img').attributes('src')).toBe('guangxi.jpg')
+  })
+
+  it('旧请求结束时不会关闭当前省份的加载状态', async () => {
+    let resolveHunan!: (response: Response) => void
+    let resolveGuangxi!: (response: Response) => void
+    vi.mocked(global.fetch)
+      .mockImplementationOnce(() => new Promise<Response>((resolve) => { resolveHunan = resolve }))
+      .mockImplementationOnce(() => new Promise<Response>((resolve) => { resolveGuangxi = resolve }))
+
+    const wrapper = mount(PhotoPanel, { props: { provinceCode: 'hunan', originRect: null } })
+    await wrapper.setProps({ provinceCode: 'guangxi' })
+    resolveHunan({ ok: true, json: () => Promise.resolve(mockPhotos) } as Response)
+    await flushPromises()
+
+    expect(wrapper.text()).toContain('正在加载照片')
+
+    resolveGuangxi({ ok: true, json: () => Promise.resolve([]) } as Response)
+    await flushPromises()
+
+    expect(wrapper.text()).toContain('还没有照片')
+    expect(wrapper.text()).not.toContain('正在加载照片')
+  })
+
   it('点击关闭按钮触发 close', async () => {
     const wrapper = mount(PhotoPanel, { props: { provinceCode: 'hunan', originRect: null } })
     await flushPromises()

@@ -1,9 +1,10 @@
 <script setup lang="ts">
-import { ref, onMounted, onUnmounted } from 'vue'
+import { computed, ref, onMounted, onUnmounted } from 'vue'
 import { SceneManager } from '../pixi/SceneManager'
 import { CameraController } from '../pixi/CameraController'
 import { useSceneStore } from '../stores/scene'
 import { useAlbumStore } from '../stores/album'
+import { useMapStore } from '../stores/map'
 import MapOverlay from '../components/MapOverlay.vue'
 import PhotoPanel from '../components/PhotoPanel.vue'
 import BookshelfOverlay from '../components/BookshelfOverlay.vue'
@@ -11,6 +12,7 @@ import AlbumViewer from '../components/AlbumViewer.vue'
 
 const sceneStore = useSceneStore()
 const albumStore = useAlbumStore()
+const mapStore = useMapStore()
 const canvasRef = ref<HTMLCanvasElement>()
 const sm = new SceneManager()
 let camera: CameraController | null = null
@@ -18,6 +20,11 @@ let camera: CameraController | null = null
 const mapVisible = ref(false)
 const shelfVisible = ref(false)
 const selectedProvince = ref<string | null>(null)
+const selectedProvinceName = computed(() =>
+  selectedProvince.value
+    ? mapStore.provinces.find((province) => province.code === selectedProvince.value)?.name
+    : undefined,
+)
 const showAlbumViewer = ref(false)
 const currentAlbumId = ref<string | null>(null)
 
@@ -98,6 +105,7 @@ function handleCloseAlbum() {
     <PhotoPanel
       v-if="selectedProvince"
       :province-code="selectedProvince"
+      :province-name="selectedProvinceName"
       :origin-rect="null"
       @close="handlePanelClose"
     />

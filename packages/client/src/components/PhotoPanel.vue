@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, watch } from 'vue'
+import { computed, ref, watch } from 'vue'
 import { apiFetch } from '../utils/apiFetch'
 
 interface PhotoDto {
@@ -11,6 +11,7 @@ interface PhotoDto {
 
 const props = defineProps<{
   provinceCode: string | null
+  provinceName?: string
   originRect: DOMRect | null
 }>()
 
@@ -21,24 +22,37 @@ const emit = defineEmits<{
 const photos = ref<PhotoDto[]>([])
 const loading = ref(false)
 const empty = ref(false)
+const error = ref(false)
+const title = computed(() => props.provinceName ?? props.provinceCode ?? '')
+let requestVersion = 0
 
 watch(
   () => props.provinceCode,
   async (code) => {
     if (!code) return
+    const version = ++requestVersion
     loading.value = true
     empty.value = false
+    error.value = false
+    photos.value = []
     try {
       const res = await apiFetch(`/api/provinces/${code}/photos`)
+      if (version !== requestVersion) return
       if (!res.ok) {
-        empty.value = true
+        error.value = true
         return
       }
       const data = await res.json()
+      if (version !== requestVersion) return
       photos.value = data
       empty.value = data.length === 0
+    } catch {
+      if (version !== requestVersion) return
+      error.value = true
     } finally {
-      loading.value = false
+      if (version === requestVersion) {
+        loading.value = false
+      }
     }
   },
   { immediate: true },
@@ -48,9 +62,12 @@ watch(
 <template>
   <div class="photo-panel">
     <div class="photo-panel-header">
+      <h2 class="photo-panel-title">{{ title }}的照片</h2>
       <button class="photo-panel-close" @click="emit('close')">✕</button>
     </div>
-    <div v-if="empty" class="photo-panel-empty">还没有照片</div>
+    <div v-if="loading" class="photo-panel-state">正在加载照片...</div>
+    <div v-else-if="error" class="photo-panel-state">照片加载失败，请稍后重试</div>
+    <div v-else-if="empty" class="photo-panel-state">还没有照片</div>
     <div v-else class="photo-panel-grid">
       <div v-for="photo in photos" :key="photo.id" class="photo-item">
         <img :src="photo.url" :alt="photo.annotation || ''" loading="lazy" />
@@ -72,9 +89,12 @@ watch(
 
 .photo-panel-header {
   display: flex;
-  justify-content: flex-end;
+  align-items: center;
+  justify-content: space-between;
   margin-bottom: 12px;
 }
+
+.photo-panel-title { margin: 0; font-size: 18px; color: #333; }
 
 .photo-panel-close {
   background: none;
@@ -84,7 +104,7 @@ watch(
   padding: 4px 8px;
 }
 
-.photo-panel-empty {
+.photo-panel-state {
   text-align: center;
   color: #999;
   padding: 40px 0;
@@ -117,5 +137,14 @@ watch(
   font-size: 12px;
   padding: 2px 6px;
   border-radius: 3px;
+  opacity: 0;
+  transition: opacity 0.2s ease;
+}
+
+.photo-item:hover .photo-annotation,
+.photo-item:focus-within .photo-annotation { opacity: 1; }
+
+@media (hover: none) {
+  .photo-annotation { opacity: 1; }
 }
 </style>
