@@ -40,7 +40,7 @@ export function useThemeColor(defaultColors?: Partial<ThemeColors>) {
         if (count < 10) return
 
         const r = rSum / count, g = gSum / count, b = bSum / count
-        const { h, s, l } = rgbToHsl(r, g, b)
+        const { h, s } = rgbToHsl(r, g, b)
 
         const from = hslToHex(h, Math.min(s * 0.6, 0.5), 0.96)
         const to = hslToHex(h, Math.min(s * 0.7, 0.6), 0.86)

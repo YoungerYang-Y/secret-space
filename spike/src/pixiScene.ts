@@ -56,7 +56,7 @@ let currentZoneIndex = 0
 
 // Rive test objects
 let riveSprites: RiveSprite[] = []
-let riveByName = new Map<string, RiveSprite>()
+const riveByName = new Map<string, RiveSprite>()
 
 function fitCamera() {
   if (!app || isZoomed) return

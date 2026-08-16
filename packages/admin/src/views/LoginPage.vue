@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { ref } from 'vue'
+import axios from 'axios'
 import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import { useAdminAuthStore } from '../stores/auth'
@@ -15,8 +16,11 @@ async function handleLogin() {
   try {
     await authStore.login(password.value)
     router.push('/provinces')
-  } catch (e: any) {
-    ElMessage.error(e.response?.data?.message || e.message || '登录失败')
+  } catch (error: unknown) {
+    const message = axios.isAxiosError<{ message?: string }>(error)
+      ? error.response?.data?.message ?? error.message
+      : error instanceof Error ? error.message : '登录失败'
+    ElMessage.error(message)
   } finally {
     loading.value = false
   }

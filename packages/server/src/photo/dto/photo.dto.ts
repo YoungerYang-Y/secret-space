@@ -7,7 +7,7 @@ export class PresignDto {
 
   @IsString()
   @IsNotEmpty()
-  @Matches(/^[a-zA-Z0-9_\-\.]+$/, { message: '文件名包含非法字符' })
+  @Matches(/^[a-zA-Z0-9_.-]+$/, { message: '文件名包含非法字符' })
   filename: string
 
   @IsString()

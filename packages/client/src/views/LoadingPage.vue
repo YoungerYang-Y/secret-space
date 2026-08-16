@@ -16,7 +16,9 @@ onMounted(async () => {
       const data = await res.json()
       tip.value = data.text
     }
-  } catch {}
+  } catch {
+    // Tips are optional; keep the default message when the endpoint is unavailable.
+  }
 
   // Simulate loading progress (real asset loading would drive this)
   timer = setInterval(() => {

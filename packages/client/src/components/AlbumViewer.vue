@@ -87,7 +87,7 @@ function initPageFlip() {
     const pageEls = bookRef.value.querySelectorAll('.page')
     if (pageEls.length > 0) {
       pageFlip.loadFromHTML(pageEls as unknown as HTMLElement[])
-      pageFlip.on('flip', (e: any) => {
+      pageFlip.on('flip', (e: { data: number }) => {
         currentPage.value = e.data
         playPageFlipSound()
       })

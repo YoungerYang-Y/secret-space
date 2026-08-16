@@ -9,6 +9,7 @@ import {
   Res,
 } from '@nestjs/common'
 import type { Response } from 'express'
+import type { Request } from 'express'
 import { AuthService } from './auth.service'
 import { SessionService } from './session.service'
 import { RateLimitGuard } from './rate-limit.guard'
@@ -27,7 +28,7 @@ export class AuthController {
   @UseGuards(RateLimitGuard)
   async verify(
     @Body() body: VerifyDto,
-    @Req() req: any,
+    @Req() req: Request & { _rateLimitIp?: string },
     @Res({ passthrough: true }) res: Response,
   ) {
     const result = await this.authService.verify(
@@ -56,7 +57,7 @@ export class AuthController {
   @Post('logout')
   @HttpCode(200)
   @UseGuards(SessionGuard)
-  async logout(@Req() req: any, @Res({ passthrough: true }) res: Response) {
+  async logout(@Req() req: Request, @Res({ passthrough: true }) res: Response) {
     const sessionId = req.cookies?.session
     if (sessionId) {
       await this.sessionService.revoke(sessionId)
@@ -75,7 +76,7 @@ export class AuthController {
 
   @Get('me')
   @UseGuards(SessionGuard)
-  me(@Req() req: any) {
+  me(@Req() req: Request & { user: { role: string } }) {
     return { role: req.user.role }
   }
 }

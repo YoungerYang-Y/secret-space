@@ -72,7 +72,7 @@ function initPageFlip() {
   const els = bookRef.value.querySelectorAll('.page')
   if (els.length) {
     pageFlip.loadFromHTML(els as unknown as HTMLElement[])
-    pageFlip.on('flip', (e: any) => {
+    pageFlip.on('flip', (e: { data: number }) => {
       currentPage.value = e.data
       showHint.value = false
     })

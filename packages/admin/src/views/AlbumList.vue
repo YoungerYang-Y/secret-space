@@ -15,6 +15,14 @@ interface Album {
   createdAt: string
 }
 
+type AlbumPayload = Pick<Album, 'year' | 'title'> & { coverUploadReceipt?: string }
+
+function errorMessage(error: unknown, fallback: string): string {
+  return axios.isAxiosError<{ message?: string }>(error)
+    ? error.response?.data?.message ?? fallback
+    : fallback
+}
+
 const albums = ref<Album[]>([])
 const dialogVisible = ref(false)
 const editingAlbum = ref<Album | null>(null)
@@ -22,7 +30,7 @@ const form = ref({ year: new Date().getFullYear(), title: '', coverUploadReceipt
 const submitting = ref(false)
 
 async function fetchAlbums() {
-  const res = await axios.get('/albums')
+  const res = await axios.get<Album[]>('/albums')
   albums.value = res.data
 }
 
@@ -47,7 +55,7 @@ async function handleSubmit() {
   if (submitting.value) return
   submitting.value = true
   try {
-    const payload: Record<string, any> = { year: form.value.year, title: form.value.title }
+    const payload: AlbumPayload = { year: form.value.year, title: form.value.title }
     if (form.value.coverUploadReceipt) {
       payload.coverUploadReceipt = form.value.coverUploadReceipt
     }
@@ -59,8 +67,8 @@ async function handleSubmit() {
     dialogVisible.value = false
     await fetchAlbums()
     ElMessage.success('保存成功')
-  } catch (e: any) {
-    ElMessage.error(e.response?.data?.message || '保存失败')
+  } catch (error: unknown) {
+    ElMessage.error(errorMessage(error, '保存失败'))
   } finally {
     submitting.value = false
   }
@@ -76,8 +84,8 @@ async function handleDelete(album: Album) {
     await axios.delete(`/albums/${album.id}`)
     await fetchAlbums()
     ElMessage.success('删除成功')
-  } catch (e: any) {
-    ElMessage.error(e.response?.data?.message || '删除失败')
+  } catch (error: unknown) {
+    ElMessage.error(errorMessage(error, '删除失败'))
   }
 }
 
