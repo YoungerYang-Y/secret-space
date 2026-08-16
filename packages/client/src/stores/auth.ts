@@ -1,43 +1,53 @@
 import { ref, computed } from 'vue'
 import { defineStore } from 'pinia'
-import type { AuthVerifyResponse } from '@secret-space/shared'
-import { AuthRole } from '@secret-space/shared'
 
 export const useAuthStore = defineStore('auth', () => {
-  const token = ref<string | null>(null)
   const role = ref<'owner' | 'visitor' | null>(null)
-  const isAuthenticated = computed(() => token.value !== null)
+  const isAuthenticated = computed(() => role.value !== null)
+  let operationVersion = 0
 
-  function checkExisting(): boolean {
-    const stored = localStorage.getItem('token')
-    if (!stored) return false
+  async function initSession(): Promise<boolean> {
+    const version = ++operationVersion
+    localStorage.removeItem('token')
     try {
-      const payload = JSON.parse(atob(stored.split('.')[1]))
-      if (payload.exp && payload.exp < Date.now() / 1000) {
-        localStorage.removeItem('token')
+      const res = await fetch('/api/auth/me', { credentials: 'same-origin' })
+      if (version !== operationVersion) return false
+      if (!res.ok) {
+        role.value = null
         return false
       }
-      token.value = stored
-      role.value = payload.role
+      const data = await res.json()
+      if (version !== operationVersion) return false
+      if (data.role !== 'owner' && data.role !== 'visitor') {
+        role.value = null
+        return false
+      }
+      role.value = data.role
       return true
     } catch {
-      localStorage.removeItem('token')
+      if (version !== operationVersion) return false
+      role.value = null
       return false
     }
   }
 
   async function verify(password: string): Promise<{ success: boolean; message?: string; retryAfter?: number }> {
+    const version = ++operationVersion
+    localStorage.removeItem('token')
     try {
       const res = await fetch('/api/auth/verify', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ password }),
+        credentials: 'same-origin',
       })
       if (res.ok) {
         const data = await res.json()
-        token.value = data.token
+        if (version !== operationVersion) return { success: false, message: '认证请求已失效' }
+        if (data.role !== 'owner' && data.role !== 'visitor') {
+          return { success: false, message: data.role === 'admin' ? '请使用管理后台登录' : '认证响应无效' }
+        }
         role.value = data.role
-        localStorage.setItem('token', data.token)
         return { success: true }
       }
       const err = await res.json()
@@ -50,11 +60,19 @@ export const useAuthStore = defineStore('auth', () => {
     }
   }
 
-  function logout(): void {
-    token.value = null
-    role.value = null
+  async function logout(): Promise<void> {
+    const version = ++operationVersion
     localStorage.removeItem('token')
+    role.value = null
+    try {
+      await fetch('/api/auth/logout', { method: 'POST', credentials: 'same-origin' })
+    } finally {
+      if (version === operationVersion) {
+        localStorage.removeItem('token')
+        role.value = null
+      }
+    }
   }
 
-  return { token, role, isAuthenticated, checkExisting, verify, logout }
+  return { role, isAuthenticated, initSession, verify, logout }
 })

@@ -10,8 +10,8 @@ import ScenePage from './views/ScenePage.vue'
 const authStore = useAuthStore()
 const sceneStore = useSceneStore()
 
-onMounted(() => {
-  if (authStore.checkExisting()) {
+onMounted(async () => {
+  if (await authStore.initSession()) {
     sceneStore.currentView = 'loading'
   }
 
