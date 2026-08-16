@@ -373,3 +373,27 @@ DR-004 `queued` → `verified`。
 
 至此 DR-005 全部 AC 无未闭合项（T1-AC3 已达标；T3-AC3 的 Promise.all 偏离保持记录）。
 
+
+## 2026-08-16：DR-005 验收通过（in-progress → verified）
+
+- **追踪 ID**：DR-005。
+- **验收依据**：基于本地 `main` HEAD `bbc1697`（fix(album): DR-005 相册业务不变量）。
+
+### 完成标准逐项核对
+
+1. 模板图片数量校验 ✅ — 5 模板正负向用例齐全，错误消息含模板、要求数量与实际有效数量。
+2. 文字要求 ✅ — photo-text 缺失/空白/有效三态覆盖；非 photo-text text 可选。
+3. 回执归属（scope）✅ — `consumeAlbum` 按 scope 查询；photo 回执用于相册 → 422 用例。
+4. 页面顺序 ✅ — `@@unique([albumId, order])`；自动递增；两阶段负数排序；连续序断言。
+5. 异常与并发路径测试通过 ✅ — P2002→409、P2025→404、P2028/超时→503、删除超时兜底清扫；并发同年/双删/reorder 用例（双删历史 4 连跑稳定）。
+6. Spec 21/21 Scenario、Plan 16/16 AC、非功能约束 3/3 全部达标。
+
+### Fresh 验证证据（2026-08-16 11:10，HEAD `bbc1697`）
+
+- album 专项 64/64 通过；`pnpm lint` 0；`pnpm test` 293/293（Server 231、Client 43、Admin 18、Shared 1）；`pnpm build` 0。
+
+### 状态变化
+
+DR-005 `in-progress` → `verified`。tracker 汇总表：queued 12 / in-progress 0 / verified 6 / 合计 18。
+当前无 active 条目；下一待启动项 P0-GAP-001～004。
+
