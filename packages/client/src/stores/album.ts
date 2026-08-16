@@ -19,6 +19,10 @@ export interface PageDto {
   createdAt: string
 }
 
+interface PageResponse extends Omit<PageDto, 'content'> {
+  content: string | PageDto['content']
+}
+
 const PALETTE = [
   '#E8A87C', '#85CDCA', '#D4A5A5', '#9EC1CF',
   '#C9B1FF', '#F7DC6F', '#A3D9A5', '#F0B27A',
@@ -47,8 +51,8 @@ export const useAlbumStore = defineStore('album', () => {
   async function fetchPages(albumId: string) {
     const res = await apiFetch(`/api/albums/${albumId}/pages`)
     if (!res.ok) throw new Error('获取页面列表失败')
-    const raw = await res.json()
-    currentPages.value = raw.map((p: any) => ({
+    const raw = await res.json() as PageResponse[]
+    currentPages.value = raw.map((p) => ({
       ...p,
       content: typeof p.content === 'string' ? JSON.parse(p.content) : p.content,
     }))

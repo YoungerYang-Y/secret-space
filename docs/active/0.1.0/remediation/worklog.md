@@ -290,3 +290,86 @@ DR-004 `queued` → `verified`。
 5. 完整验证命令、退出码和测试数量。
 6. 剩余风险、阻塞或新建的追踪 ID。
 7. 最终状态变化。
+
+## 2026-08-16：DR-005 评审修正轮
+
+- **追踪 ID**：DR-005（状态维持 `in-progress`）。
+- **触发**：对 27 个待提交文件整体 review 后，确认无阻断性问题，但存在健壮性与一致性瑕疵，本轮修正并拆分提交。
+
+### 修正内容
+
+1. **超时判断收敛**：新增 `packages/server/src/prisma/transaction-timeout.ts`（`isTransactionTimeout`），覆盖 P2028/P2034 错误码与 "Timed out during query execution" 引擎消息；`album.service.ts` 删除/排序路径统一使用，移除散落的字符串匹配。
+2. **删除超时兜底**：`AlbumService.delete` 超时后若相册已不存在（事务实际已提交或已被并发请求删除），先走 `runDueDeletions` 处理已登记的删除任务，再按既有契约返回 404。
+3. **测试补强**：`album.controller.test.ts` 新增 P2028→503、超时但已提交→404 且删除任务完成 2 个用例（52/52 通过）。
+   - 期间发现并发双删测试偶发失败（实际 204/204 vs 契约 204/404）：根因是最初把超时分支改成了 204，与既有契约冲突；改为"兜底清扫后仍返回 404"后，完整服务端套件连跑 4 次全绿。
+4. **一致性修正**：admin `PageEditor.vue` presign/confirm 响应类型化；两端模板定义加 DR-006 同步注释；client 端 admin 密码提示文案明确化；`PhotoPanel.test.ts` 补最终断言。
+5. **环境**：`prisma migrate dev` 已把 `20260812000000_add_page_album_order_unique` 应用到 dev.db。
+
+### 验证证据（fresh，2026-08-16）
+
+- `pnpm lint` 退出码 0。
+- `pnpm test` 退出码 0：Server 219/219（完整套件连跑 4 次全绿）、Client 43/43、Admin 18/18。
+- `pnpm build` 退出码 0。
+
+### 提交状态
+
+修正完成后曾拆为 4 个逻辑提交（chore(eslint)/refactor(client-auth)/feat(photo-panel)/fix(album)），经确认已撤回，全部改动保留为未提交工作区状态，等待另行决定提交时机。
+
+### 补充修正（同日，第二轮 review 建议项）
+
+1. admin `PageEditor.vue` 既有 `uploadImage` 的 presign/confirm 响应改用 `PresignResponse`/`ConfirmResponse` 类型，与新增页流程一致。
+2. 移除 `Page` 模型冗余的 `@@index([albumId, order])`（唯一索引已覆盖同列前缀），生成并应用迁移 `20260816023039_drop_page_album_order_redundant_index`。
+
+### 剩余风险
+
+- DR-005 完成标准的逐项核对与 verified 判定待全部提交落地后进行。
+- DR-006（模板定义统一）未实施，仅加注释指向。
+
+
+## 2026-08-16：DR-005 场景测试补齐（第二轮补完）
+
+- **追踪 ID**：DR-005（状态维持 `in-progress`，完成标准全部达成，verified 判定待确认）。
+
+### 背景
+
+按 spec 的 21 个 Scenario 逐条核对测试覆盖，发现 8 个场景无直接测试证据；本轮补齐。
+
+### 修改内容（测试先行）
+
+`packages/server/src/album/__tests__/album.controller.test.ts` 新增 12 个用例：
+
+- 模板图片数量负向：single 传 2 张、double-h/double-v 传 1 张、triple 传 2 张、photo-text 传 2 张（Scenario 1.1/1.2/1.3/1.4/1.5）
+- 模板图片数量正向：triple 恰好 3 张 → 201 且空相册 order=1（Scenario 1.6 + Task2-AC3）
+- 创建空图片：imageReceipts=[null] 与 [""] 均 400（Scenario 1.7）
+- photo-text 缺 text 字段 400（Scenario 2.1）、有效 text 201（Scenario 2.3）
+- 改模板数量不匹配 400（Scenario 1.9）、[新回执, null] 换一保一 200（Scenario 1.10）
+- 回执归属：photo scope 回执用于相册页 → 422（tracker 完成标准"回执归属"证据）
+
+### Red/Green 证据
+
+- Red：本批用例为该轮唯一新增内容，全部直接针对 spec Scenario；先写入用例再运行（无实现改动）。
+- Green（fresh，2026-08-16）：`npx vitest run src/album/__tests__/album.controller.test.ts` → 64/64 通过（原 52 + 新 12）。
+
+### 记录收口
+
+- `plan.md`：Task 1~4 全部 AC 勾选，Status → done；Commit SHA 标注"未提交（工作区）"。
+- Task3-AC3 偏离：实现用 `Promise.all` 而非 `allSettled`（并发语义等价、失败显式抛出）。
+- `tracker.md`：DR-005 完成标准措辞"媒体归属"→"回执归属（scope）"，与 spec 范围外条款一致。
+
+### 全仓 fresh 验证（2026-08-16，本条目完成后）
+
+- `pnpm lint` 退出码 0。
+- `pnpm test` 退出码 0：Server 231/231（含新增 12 例）、Client 43/43、Admin 18/18、Shared 1/1。
+- `pnpm build` 退出码 0。
+- verified 判定待用户确认后更新 tracker。
+
+
+### 补充修正（同日）：T1-AC3 错误消息补实际数量
+
+- **触发**：逐 AC 确认发现 T1-AC3（消息含模板、要求数量、实际数量）未完全达标——实现只含模板与要求数量。
+- **Red**：先给 \`validates the template image count\`（期待"收到 0 张有效图片"）与 \`rejects single with more than one image\`（期待"收到 2 张有效图片"）补断言，运行后恰好这 2 个用例失败。
+- **Green**：\`validatePageContent\` 两处消息改为 \`{模板} 模板需要 {N} 张图片，收到 {实际有效数} 张有效图片\`；album 测试 64/64 通过。
+- **全仓 fresh**：\`pnpm lint\` 0；\`pnpm test\` 293/293（Server 231、Client 43、Admin 18、Shared 1）；\`pnpm build\` 0。
+
+至此 DR-005 全部 AC 无未闭合项（T1-AC3 已达标；T3-AC3 的 Promise.all 偏离保持记录）。
+

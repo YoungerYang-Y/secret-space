@@ -16,15 +16,15 @@
 - Modify: `packages/server/src/album/__tests__/album.controller.test.ts`
 
 **Acceptance Criteria:**
-- [ ] AC1: `TEMPLATE_CONSTRAINTS` 常量定义 5 种模板的 imageCount 和 textRequired
-- [ ] AC2: `validatePageContent` 方法校验图片数量和文字要求
-- [ ] AC3: 图片数量不匹配时返回 400，消息明确指出模板、要求数量、实际数量
-- [ ] AC4: photo-text 缺少文字时返回 400
-- [ ] AC5: 各模板正向/负向测试用例通过
+- [x] AC1: `TEMPLATE_CONSTRAINTS` 常量定义 5 种模板的 imageCount 和 textRequired
+- [x] AC2: `validatePageContent` 方法校验图片数量和文字要求
+- [x] AC3: 图片数量不匹配时返回 400，消息明确指出模板、要求数量、实际数量
+- [x] AC4: photo-text 缺少文字时返回 400
+- [x] AC5: 各模板正向/负向测试用例通过
 
 **Execution:**
-- **Status:** pending
-- **Commit SHA:** null
+- **Status:** done
+- **Commit SHA:** 未提交（保留在工作区，等待拆分提交决策）
 
 ### Red
 ```typescript
@@ -220,15 +220,15 @@ feat(album): 添加模板图片数量和文字校验
 - Modify: `packages/server/src/album/__tests__/album.controller.test.ts`
 
 **Acceptance Criteria:**
-- [ ] AC1: `CreatePageDto.order` 改为可选
-- [ ] AC2: 未提供 order 时自动分配 max(existing) + 1
-- [ ] AC3: 空相册首页 order = 1
-- [ ] AC4: 提供 order 时使用指定值
-- [ ] AC5: 测试覆盖自动分配场景
+- [x] AC1: `CreatePageDto.order` 改为可选
+- [x] AC2: 未提供 order 时自动分配 max(existing) + 1
+- [x] AC3: 空相册首页 order = 1
+- [x] AC4: 提供 order 时使用指定值
+- [x] AC5: 测试覆盖自动分配场景
 
 **Execution:**
-- **Status:** pending
-- **Commit SHA:** null
+- **Status:** done
+- **Commit SHA:** 未提交（保留在工作区，等待拆分提交决策）
 
 ### Red
 ```typescript
@@ -290,13 +290,13 @@ feat(album): order 自动分配
 - Modify: `packages/server/src/album/__tests__/album.controller.test.ts`
 
 **Acceptance Criteria:**
-- [ ] AC1: 并发创建相同年份相册，一个 201 一个 409
-- [ ] AC2: 并发删除同一相册，一个 204 一个 404
-- [ ] AC3: 测试使用 `Promise.allSettled` 验证并发行为
+- [x] AC1: 并发创建相同年份相册，一个 201 一个 409
+- [x] AC2: 并发删除同一相册，一个 204 一个 404
+- [x] AC3: 测试使用 `Promise.allSettled` 验证并发行为（实现采用 `Promise.all`，并发语义等价且失败显式抛出，偏离记录见 worklog）
 
 **Execution:**
-- **Status:** pending
-- **Commit SHA:** null
+- **Status:** done
+- **Commit SHA:** 未提交（保留在工作区，等待拆分提交决策）
 
 ### Red
 ```typescript
@@ -367,13 +367,13 @@ test(album): 添加并发安全测试
 - Modify: `packages/server/src/__tests__/album-flow.e2e.test.ts`
 
 **Acceptance Criteria:**
-- [ ] AC1: 现有测试数据符合模板约束（图片数量正确）
-- [ ] AC2: 全仓测试通过 (`pnpm test`)
-- [ ] AC3: 全仓构建通过 (`pnpm build`)
+- [x] AC1: 现有测试数据符合模板约束（图片数量正确）
+- [x] AC2: 全仓测试通过 (`pnpm test`)
+- [x] AC3: 全仓构建通过 (`pnpm build`)
 
 **Execution:**
-- **Status:** pending
-- **Commit SHA:** null
+- **Status:** done
+- **Commit SHA:** 未提交（保留在工作区，等待拆分提交决策）
 
 ### Red
 运行 `pnpm test`，检查因新增校验导致的失败。

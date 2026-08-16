@@ -53,7 +53,7 @@ model Page {
   content    String
   createdAt  DateTime @default(now())
 
-  @@index([albumId, order])
+  @@unique([albumId, order])
 }
 
 model MediaDeletionTask {

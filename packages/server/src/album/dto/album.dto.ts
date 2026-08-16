@@ -1,4 +1,4 @@
-import { IsInt, IsOptional, IsString, IsIn, IsArray, ValidateNested, ArrayMaxSize, IsNotEmpty, Matches, IsEmpty, IsDefined, registerDecorator, ValidationOptions, ValidationArguments } from 'class-validator'
+import { IsInt, IsOptional, IsString, IsIn, IsArray, ValidateNested, ArrayMaxSize, IsNotEmpty, Matches, IsEmpty, IsDefined, Min, registerDecorator, ValidationOptions, ValidationArguments } from 'class-validator'
 import { Type } from 'class-transformer'
 
 function IsStringOrNull(validationOptions?: ValidationOptions) {
@@ -57,6 +57,14 @@ export class UpdateAlbumDto {
 }
 
 export const VALID_TEMPLATES = ['single', 'double-h', 'double-v', 'triple', 'photo-text'] as const
+// 与 admin 端 PageEditor.vue 的 TEMPLATES 保持一致；模板定义的统一由 DR-006 收口。
+export const TEMPLATE_CONSTRAINTS = {
+  single: { imageCount: 1, textRequired: false },
+  'double-h': { imageCount: 2, textRequired: false },
+  'double-v': { imageCount: 2, textRequired: false },
+  triple: { imageCount: 3, textRequired: false },
+  'photo-text': { imageCount: 1, textRequired: true },
+} as const
 
 export class PageContentDto {
   @IsArray()
@@ -83,8 +91,10 @@ export class CreatePageDto {
   @Type(() => PageContentDto)
   content: PageContentDto
 
+  @IsOptional()
   @IsInt()
-  order: number
+  @Min(1)
+  order?: number
 }
 
 export class UpdatePageDto {
@@ -107,7 +117,7 @@ export class ReorderPagesDto {
 export class AlbumPresignDto {
   @IsString()
   @IsNotEmpty()
-  @Matches(/^[a-zA-Z0-9_\-\.]+$/, { message: '文件名包含非法字符' })
+  @Matches(/^[a-zA-Z0-9_.-]+$/, { message: '文件名包含非法字符' })
   filename: string
 
   @IsString()

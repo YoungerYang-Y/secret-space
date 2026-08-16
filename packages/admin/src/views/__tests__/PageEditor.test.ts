@@ -159,4 +159,33 @@ describe('PageEditor image upload flow', () => {
     expect(mockAxios.put).not.toHaveBeenCalled()
     expect(mockElMessage.error).toHaveBeenCalledWith('上传失败')
   })
+
+  it('新页面没有完成全部图片上传时不会提交空 receipt', async () => {
+    const wrapper = mount(PageEditor)
+    await flushPromises()
+
+    const vm = wrapper.vm as any
+    await vm.addPage()
+
+    expect(mockAxios.post).not.toHaveBeenCalledWith(
+      '/albums/album-1/pages',
+      expect.anything(),
+    )
+    expect(mockElMessage.error).toHaveBeenCalledWith('请先上传全部图片')
+  })
+
+  it('拖拽排序成功后同步本地页面序号', async () => {
+    mockAxios.put.mockResolvedValueOnce({ data: {} })
+    const wrapper = mount(PageEditor)
+    await flushPromises()
+    const vm = wrapper.vm as any
+    vm.pages = [
+      { ...vm.pages[0], id: 'p2', order: 2 },
+      { ...vm.pages[0], id: 'p1', order: 1 },
+    ]
+
+    await vm.handleDragEnd()
+
+    expect(vm.pages.map((page: { order: number }) => page.order)).toEqual([1, 2])
+  })
 })

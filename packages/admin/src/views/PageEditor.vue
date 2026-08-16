@@ -17,6 +17,36 @@ interface Page {
   content: { images: string[]; previewUrls: string[]; imageReceipts: Array<string | null>; text?: string }
 }
 
+interface PageResponse extends Omit<Page, 'content'> {
+  content: string | Omit<Page['content'], 'previewUrls' | 'imageReceipts'>
+}
+
+interface AlbumSummary {
+  id: string
+  year: number
+  title: string | null
+  coverUrl: string | null
+}
+
+interface PresignResponse {
+  uploadUrl: string
+  key: string
+}
+
+interface ConfirmResponse {
+  uploadReceipt: string
+  readUrl?: string
+  readExpiresIn?: number
+}
+
+function errorMessage(error: unknown, fallback: string): string {
+  return axios.isAxiosError<{ message?: string }>(error)
+    ? error.response?.data?.message ?? fallback
+    : fallback
+}
+
+// 与 server 端 TEMPLATE_CONSTRAINTS 保持一致（packages/server/src/album/dto/album.dto.ts）；
+// DR-006 统一模板定义后移除此处重复。
 const TEMPLATES = [
   { id: 'single', label: '单图', slots: 1 },
   { id: 'double-h', label: '左右双图', slots: 2 },
@@ -29,12 +59,14 @@ const pages = ref<Page[]>([])
 const selectedPage = ref<Page | null>(null)
 const addDialogVisible = ref(false)
 const newTemplateId = ref('single')
+const newPageReceipts = ref<string[]>([''])
+const newPageText = ref('')
 const showPreview = ref(false)
 const albumInfo = ref<{ year: number; title: string | null; coverUrl: string | null }>({ year: 2024, title: null, coverUrl: null })
 
 async function fetchPages() {
-  const res = await axios.get(`/albums/${albumId.value}/pages`)
-  pages.value = res.data.map((p: any) => {
+  const res = await axios.get<PageResponse[]>(`/albums/${albumId.value}/pages`)
+  pages.value = res.data.map((p) => {
     const content = typeof p.content === 'string' ? JSON.parse(p.content) : p.content
     // Ensure previewUrls exists for display (server returns signed URLs in images for existing pages)
     content.previewUrls = [...content.images]
@@ -47,8 +79,8 @@ async function fetchPages() {
 }
 
 async function fetchAlbumInfo() {
-  const res = await axios.get('/albums')
-  const album = res.data.find((a: any) => a.id === albumId.value)
+  const res = await axios.get<AlbumSummary[]>('/albums')
+  const album = res.data.find((item) => item.id === albumId.value)
   if (album) albumInfo.value = { year: album.year, title: album.title, coverUrl: album.coverUrl }
 }
 
@@ -56,31 +88,54 @@ async function handleDragEnd() {
   const pageIds = pages.value.map((p) => p.id)
   try {
     await axios.put(`/albums/${albumId.value}/pages/reorder`, { pageIds })
+    pages.value.forEach((page, index) => {
+      page.order = index + 1
+    })
   } catch {
+    await fetchPages()
     ElMessage.error('排序保存失败')
   }
 }
 
 async function addPage() {
   const tpl = TEMPLATES.find((t) => t.id === newTemplateId.value)!
-  const content = {
-    images: Array(tpl.slots).fill(''),
-    previewUrls: Array(tpl.slots).fill(''),
-    imageReceipts: Array(tpl.slots).fill(''),
-    text: '',
+  if (newPageReceipts.value.length !== tpl.slots || newPageReceipts.value.some((receipt) => !receipt)) {
+    ElMessage.error('请先上传全部图片')
+    return
+  }
+  if (newTemplateId.value === 'photo-text' && !newPageText.value.trim()) {
+    ElMessage.error('请填写文字说明')
+    return
   }
   try {
     await axios.post(`/albums/${albumId.value}/pages`, {
       templateId: newTemplateId.value,
-      content: { imageReceipts: content.imageReceipts, text: content.text },
-      order: pages.value.length + 1,
+      content: { imageReceipts: newPageReceipts.value, text: newPageText.value },
     })
     addDialogVisible.value = false
+    newPageReceipts.value = Array(tpl.slots).fill('')
+    newPageText.value = ''
     await fetchPages()
     selectedPage.value = pages.value[pages.value.length - 1]
     ElMessage.success('页面已添加')
-  } catch (e: any) {
-    ElMessage.error(e.response?.data?.message || '添加失败')
+  } catch (error: unknown) {
+    ElMessage.error(errorMessage(error, '添加失败'))
+  }
+}
+
+async function uploadNewPageImage(file: File, index: number) {
+  try {
+    const compressed = await compressImage(file)
+    const presignRes = await axios.post<PresignResponse>('/albums/presign', {
+      filename: `page-${Date.now()}.webp`,
+      contentType: 'image/webp',
+    })
+    const { uploadUrl, key } = presignRes.data
+    await fetch(uploadUrl, { method: 'PUT', body: compressed, headers: { 'Content-Type': 'image/webp' } })
+    const confirmRes = await axios.post<ConfirmResponse>('/media/confirm', { key })
+    newPageReceipts.value[index] = confirmRes.data.uploadReceipt
+  } catch {
+    ElMessage.error('图片上传失败')
   }
 }
 
@@ -118,7 +173,7 @@ async function uploadImage(file: File, index: number) {
     const compressed = await compressImage(file)
 
     // Step 1: Get presigned upload URL
-    const presignRes = await axios.post('/albums/presign', {
+    const presignRes = await axios.post<PresignResponse>('/albums/presign', {
       filename: `page-${Date.now()}.webp`,
       contentType: 'image/webp',
     })
@@ -129,7 +184,7 @@ async function uploadImage(file: File, index: number) {
     await fetch(uploadUrl, { method: 'PUT', body: compressed, headers: { 'Content-Type': 'image/webp' } })
 
     // Step 3: Confirm upload to get an opaque receipt and short-lived preview
-    const confirmRes = await axios.post('/media/confirm', { key })
+    const confirmRes = await axios.post<ConfirmResponse>('/media/confirm', { key })
     const { uploadReceipt, readUrl } = confirmRes.data
 
     // Step 4: Keep the receipt only until the save succeeds; previews are short-lived URLs.
@@ -160,6 +215,11 @@ watch(() => selectedPage.value?.templateId, (newId, oldId) => {
   }
   if (selectedPage.value.content.images.some(Boolean)) savePage()
 })
+
+watch(newTemplateId, (templateId) => {
+  newPageReceipts.value = Array(getSlotCount(templateId)).fill('')
+  newPageText.value = ''
+}, { immediate: true })
 
 onMounted(() => { fetchPages(); fetchAlbumInfo() })
 </script>
@@ -230,6 +290,24 @@ onMounted(() => { fetchPages(); fetchAlbumInfo() })
       <el-radio-group v-model="newTemplateId">
         <el-radio v-for="tpl in TEMPLATES" :key="tpl.id" :value="tpl.id">{{ tpl.label }}</el-radio>
       </el-radio-group>
+      <div class="image-slots new-page-slots">
+        <div v-for="i in getSlotCount(newTemplateId)" :key="i" class="image-slot">
+          <el-upload
+            :show-file-list="false"
+            :before-upload="(file: File) => { uploadNewPageImage(file, i - 1); return false }"
+            accept="image/*"
+          >
+            <el-button size="small">{{ newPageReceipts[i - 1] ? '已上传' : `上传图${i}` }}</el-button>
+          </el-upload>
+        </div>
+      </div>
+      <el-input
+        v-if="newTemplateId === 'photo-text'"
+        v-model="newPageText"
+        type="textarea"
+        placeholder="文字说明"
+        class="new-page-text"
+      />
       <template #footer>
         <el-button @click="addDialogVisible = false">取消</el-button>
         <el-button type="primary" @click="addPage">确定</el-button>
@@ -285,6 +363,8 @@ onMounted(() => { fetchPages(); fetchAlbumInfo() })
   gap: 4px;
   align-items: center;
 }
+.new-page-slots { margin-top: 16px; }
+.new-page-text { margin-top: 16px; }
 .empty-hint {
   color: #999;
   padding-top: 40px;

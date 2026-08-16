@@ -1,4 +1,5 @@
 import { INestApplication } from '@nestjs/common'
+import { Prisma } from '@prisma/client'
 import request from 'supertest'
 import * as jwt from 'jsonwebtoken'
 import { JWT_SECRET } from '../../auth/auth.service'
@@ -159,6 +160,21 @@ describe('Album API', () => {
     expect(res.status).toBe(409)
   })
 
+  it('POST /albums maps a concurrent duplicate-year write to 409', async () => {
+    const responses = await Promise.all([
+      request(app.getHttpServer())
+        .post('/api/albums')
+        .set('Authorization', `Bearer ${adminToken}`)
+        .send({ year: 2040 }),
+      request(app.getHttpServer())
+        .post('/api/albums')
+        .set('Authorization', `Bearer ${adminToken}`)
+        .send({ year: 2040 }),
+    ])
+
+    expect(responses.map((response) => response.status).sort()).toEqual([201, 409])
+  })
+
   it('POST /albums returns 403 without admin role', async () => {
     const res = await request(app.getHttpServer())
       .post('/api/albums')
@@ -231,6 +247,70 @@ describe('Album API', () => {
       .delete('/api/albums/nonexistent')
       .set('Authorization', `Bearer ${adminToken}`)
     expect(res.status).toBe(404)
+  })
+
+  it('DELETE /albums maps a concurrent second deletion to 404', async () => {
+    const album = await prisma.album.create({ data: { year: 2041 } })
+    const responses = await Promise.all([
+      request(app.getHttpServer()).delete(`/api/albums/${album.id}`).set('Authorization', `Bearer ${adminToken}`),
+      request(app.getHttpServer()).delete(`/api/albums/${album.id}`).set('Authorization', `Bearer ${adminToken}`),
+    ])
+
+    expect(responses.map((response) => response.status).sort()).toEqual([204, 404])
+  })
+
+  it('DELETE /albums returns 503 for a database timeout when the album still exists', async () => {
+    const album = await prisma.album.create({ data: { year: 2042 } })
+    const transaction = vi.spyOn(prisma, '$transaction').mockRejectedValueOnce(
+      new Error('Timed out during query execution'),
+    )
+
+    const res = await request(app.getHttpServer())
+      .delete(`/api/albums/${album.id}`)
+      .set('Authorization', `Bearer ${adminToken}`)
+
+    expect(res.status).toBe(503)
+    expect(await prisma.album.findUnique({ where: { id: album.id } })).not.toBeNull()
+    transaction.mockRestore()
+  })
+
+  it('DELETE /albums maps a P2028 transaction closure to 503', async () => {
+    const album = await prisma.album.create({ data: { year: 2044 } })
+    const transaction = vi.spyOn(prisma, '$transaction').mockRejectedValueOnce(
+      new Prisma.PrismaClientKnownRequestError('Transaction already closed', {
+        code: 'P2028',
+        clientVersion: '5.0.0',
+      }),
+    )
+
+    const res = await request(app.getHttpServer())
+      .delete(`/api/albums/${album.id}`)
+      .set('Authorization', `Bearer ${adminToken}`)
+
+    expect(res.status).toBe(503)
+    expect(await prisma.album.findUnique({ where: { id: album.id } })).not.toBeNull()
+    transaction.mockRestore()
+  })
+
+  it('DELETE /albums sweeps deletion tasks when the commit reported a timeout', async () => {
+    const album = await prisma.album.create({
+      data: { year: 2045, coverUrl: 'media://photos/album/timeout-gone.webp' },
+    })
+    const transaction = vi.spyOn(prisma, '$transaction').mockImplementationOnce(async (fn: any) => {
+      await fn(prisma)
+      throw new Error('Timed out during query execution')
+    })
+
+    const res = await request(app.getHttpServer())
+      .delete(`/api/albums/${album.id}`)
+      .set('Authorization', `Bearer ${adminToken}`)
+
+    // 超时但事务实际已提交：按既有契约返回 404，同时兜底处理已登记的删除任务
+    expect(res.status).toBe(404)
+    expect(await prisma.album.findUnique({ where: { id: album.id } })).toBeNull()
+    const tasks = await prisma.mediaDeletionTask.findMany({ where: { key: 'photos/album/timeout-gone.webp' } })
+    expect(tasks.some((task) => task.status === 'done')).toBe(true)
+    transaction.mockRestore()
   })
 
   // --- Pages CRUD ---
@@ -309,6 +389,200 @@ describe('Album API', () => {
     expect(res.body.order).toBe(1)
   })
 
+  it('POST /albums/:id/pages validates the template image count', async () => {
+    const album = await prisma.album.create({ data: { year: 2026 } })
+    const res = await request(app.getHttpServer())
+      .post(`/api/albums/${album.id}/pages`)
+      .set('Authorization', `Bearer ${adminToken}`)
+      .send({ templateId: 'single', content: { imageReceipts: [] } })
+
+    expect(res.status).toBe(400)
+    expect(res.body.message).toContain('single 模板需要 1 张图片')
+    expect(res.body.message).toContain('收到 0 张有效图片')
+  })
+
+  it('POST /albums/:id/pages rejects single with more than one image', async () => {
+    const album = await prisma.album.create({ data: { year: 2026 } })
+    const r1 = await createAlbumReceipt('photos/album/single-extra-1.webp')
+    const r2 = await createAlbumReceipt('photos/album/single-extra-2.webp')
+    const res = await request(app.getHttpServer())
+      .post(`/api/albums/${album.id}/pages`)
+      .set('Authorization', `Bearer ${adminToken}`)
+      .send({ templateId: 'single', content: { imageReceipts: [r1, r2] } })
+
+    expect(res.status).toBe(400)
+    expect(res.body.message).toContain('single 模板需要 1 张图片')
+    expect(res.body.message).toContain('收到 2 张有效图片')
+  })
+
+  it('POST /albums/:id/pages rejects double-h with one image', async () => {
+    const album = await prisma.album.create({ data: { year: 2026 } })
+    const r1 = await createAlbumReceipt('photos/album/double-h-one.webp')
+    const res = await request(app.getHttpServer())
+      .post(`/api/albums/${album.id}/pages`)
+      .set('Authorization', `Bearer ${adminToken}`)
+      .send({ templateId: 'double-h', content: { imageReceipts: [r1] } })
+
+    expect(res.status).toBe(400)
+    expect(res.body.message).toContain('double-h 模板需要 2 张图片')
+  })
+
+  it('POST /albums/:id/pages rejects double-v with one image', async () => {
+    const album = await prisma.album.create({ data: { year: 2026 } })
+    const r1 = await createAlbumReceipt('photos/album/double-v-one.webp')
+    const res = await request(app.getHttpServer())
+      .post(`/api/albums/${album.id}/pages`)
+      .set('Authorization', `Bearer ${adminToken}`)
+      .send({ templateId: 'double-v', content: { imageReceipts: [r1] } })
+
+    expect(res.status).toBe(400)
+    expect(res.body.message).toContain('double-v 模板需要 2 张图片')
+  })
+
+  it('POST /albums/:id/pages rejects triple with two images', async () => {
+    const album = await prisma.album.create({ data: { year: 2026 } })
+    const r1 = await createAlbumReceipt('photos/album/triple-two-1.webp')
+    const r2 = await createAlbumReceipt('photos/album/triple-two-2.webp')
+    const res = await request(app.getHttpServer())
+      .post(`/api/albums/${album.id}/pages`)
+      .set('Authorization', `Bearer ${adminToken}`)
+      .send({ templateId: 'triple', content: { imageReceipts: [r1, r2] } })
+
+    expect(res.status).toBe(400)
+    expect(res.body.message).toContain('triple 模板需要 3 张图片')
+  })
+
+  it('POST /albums/:id/pages creates a triple page with exactly three images', async () => {
+    const album = await prisma.album.create({ data: { year: 2026 } })
+    const receipts = await Promise.all([
+      createAlbumReceipt('photos/album/triple-ok-1.webp'),
+      createAlbumReceipt('photos/album/triple-ok-2.webp'),
+      createAlbumReceipt('photos/album/triple-ok-3.webp'),
+    ])
+    const res = await request(app.getHttpServer())
+      .post(`/api/albums/${album.id}/pages`)
+      .set('Authorization', `Bearer ${adminToken}`)
+      .send({ templateId: 'triple', content: { imageReceipts: receipts } })
+
+    expect(res.status).toBe(201)
+    expect(res.body.templateId).toBe('triple')
+    expect(res.body.order).toBe(1)
+  })
+
+  it('POST /albums/:id/pages rejects photo-text with two images', async () => {
+    const album = await prisma.album.create({ data: { year: 2026 } })
+    const r1 = await createAlbumReceipt('photos/album/photo-text-two-1.webp')
+    const r2 = await createAlbumReceipt('photos/album/photo-text-two-2.webp')
+    const res = await request(app.getHttpServer())
+      .post(`/api/albums/${album.id}/pages`)
+      .set('Authorization', `Bearer ${adminToken}`)
+      .send({ templateId: 'photo-text', content: { imageReceipts: [r1, r2], text: '有文字' } })
+
+    expect(res.status).toBe(400)
+    expect(res.body.message).toContain('photo-text 模板需要 1 张图片')
+  })
+
+  it('POST /albums/:id/pages rejects null and empty image receipts on create', async () => {
+    const album = await prisma.album.create({ data: { year: 2026 } })
+
+    for (const imageReceipts of [[null], ['']]) {
+      const res = await request(app.getHttpServer())
+        .post(`/api/albums/${album.id}/pages`)
+        .set('Authorization', `Bearer ${adminToken}`)
+        .send({ templateId: 'single', content: { imageReceipts } })
+
+      expect(res.status).toBe(400)
+      expect(res.body.message).toContain('创建页面时图片不能为空')
+    }
+  })
+
+  it('POST /albums/:id/pages requires a text field for the photo-text template', async () => {
+    const album = await prisma.album.create({ data: { year: 2026 } })
+    const receipt = await createAlbumReceipt('photos/album/photo-text-no-text.webp')
+    const res = await request(app.getHttpServer())
+      .post(`/api/albums/${album.id}/pages`)
+      .set('Authorization', `Bearer ${adminToken}`)
+      .send({ templateId: 'photo-text', content: { imageReceipts: [receipt] } })
+
+    expect(res.status).toBe(400)
+    expect(res.body.message).toContain('photo-text 模板需要填写文字')
+  })
+
+  it('POST /albums/:id/pages creates a photo-text page with valid text', async () => {
+    const album = await prisma.album.create({ data: { year: 2026 } })
+    const receipt = await createAlbumReceipt('photos/album/photo-text-ok.webp')
+    const res = await request(app.getHttpServer())
+      .post(`/api/albums/${album.id}/pages`)
+      .set('Authorization', `Bearer ${adminToken}`)
+      .send({ templateId: 'photo-text', content: { imageReceipts: [receipt], text: '有意义的文字' } })
+
+    expect(res.status).toBe(201)
+    expect(JSON.parse(res.body.content)).toMatchObject({ text: '有意义的文字' })
+  })
+
+  it('POST /albums/:id/pages rejects a photo-scope receipt', async () => {
+    const album = await prisma.album.create({ data: { year: 2026 } })
+    const photoReceipt = (
+      await prisma.mediaUploadReceipt.upsert({
+        where: { key: 'photos/beijing/cross-scope.webp' },
+        create: {
+          key: 'photos/beijing/cross-scope.webp',
+          scope: 'photo',
+          provinceCode: 'beijing',
+          expiresAt: new Date(Date.now() + 60_000),
+        },
+        update: { consumedAt: null, expiresAt: new Date(Date.now() + 60_000) },
+      })
+    ).id
+    const res = await request(app.getHttpServer())
+      .post(`/api/albums/${album.id}/pages`)
+      .set('Authorization', `Bearer ${adminToken}`)
+      .send({ templateId: 'single', content: { imageReceipts: [photoReceipt] } })
+
+    expect(res.status).toBe(422)
+    expect(res.body.message).toContain('不属于当前资源')
+  })
+
+  it('POST /albums/:id/pages requires text for the photo-text template', async () => {
+    const album = await prisma.album.create({ data: { year: 2026 } })
+    const receipt = await createAlbumReceipt('photos/album/photo-text.webp')
+    const res = await request(app.getHttpServer())
+      .post(`/api/albums/${album.id}/pages`)
+      .set('Authorization', `Bearer ${adminToken}`)
+      .send({ templateId: 'photo-text', content: { imageReceipts: [receipt], text: '   ' } })
+
+    expect(res.status).toBe(400)
+    expect(res.body.message).toContain('photo-text 模板需要填写文字')
+  })
+
+  it('POST /albums/:id/pages assigns the next order when one is not provided', async () => {
+    const album = await prisma.album.create({ data: { year: 2026 } })
+    await prisma.page.create({
+      data: { albumId: album.id, order: 3, templateId: 'single', content: '{"images":[]}' },
+    })
+    const receipt = await createAlbumReceipt('photos/album/auto-order.webp')
+    const res = await request(app.getHttpServer())
+      .post(`/api/albums/${album.id}/pages`)
+      .set('Authorization', `Bearer ${adminToken}`)
+      .send({ templateId: 'single', content: { imageReceipts: [receipt] } })
+
+    expect(res.status).toBe(201)
+    expect(res.body.order).toBe(4)
+  })
+
+  it('POST /albums/:id/pages rejects zero and negative order values', async () => {
+    const album = await prisma.album.create({ data: { year: 2026 } })
+    const receipt = await createAlbumReceipt('photos/album/invalid-order.webp')
+
+    for (const order of [0, -1]) {
+      const res = await request(app.getHttpServer())
+        .post(`/api/albums/${album.id}/pages`)
+        .set('Authorization', `Bearer ${adminToken}`)
+        .send({ templateId: 'single', content: { imageReceipts: [receipt] }, order })
+      expect(res.status).toBe(400)
+    }
+  })
+
   it('POST /albums/:id/pages returns 400 for invalid templateId', async () => {
     const album = await prisma.album.create({ data: { year: 2024 } })
     const res = await request(app.getHttpServer())
@@ -350,12 +624,135 @@ describe('Album API', () => {
     expect(res.body.templateId).toBe('double-h')
   })
 
+  it('PUT /pages/:id requires image receipts when changing templates', async () => {
+    const album = await prisma.album.create({ data: { year: 2029 } })
+    const page = await prisma.page.create({
+      data: {
+        albumId: album.id,
+        order: 1,
+        templateId: 'single',
+        content: JSON.stringify({ images: ['media://photos/album/unchanged.webp'] }),
+      },
+    })
+    const res = await request(app.getHttpServer())
+      .put(`/api/pages/${page.id}`)
+      .set('Authorization', `Bearer ${adminToken}`)
+      .send({ templateId: 'photo-text', content: { text: '不应绕过图片校验' } })
+
+    expect(res.status).toBe(400)
+    expect(res.body.message).toContain('修改模板时必须提供图片')
+  })
+
+  it('PUT /pages/:id rejects changing template with mismatched image count', async () => {
+    const album = await prisma.album.create({ data: { year: 2031 } })
+    const page = await prisma.page.create({
+      data: {
+        albumId: album.id,
+        order: 1,
+        templateId: 'single',
+        content: JSON.stringify({ images: ['media://photos/album/count-mismatch.webp'] }),
+      },
+    })
+    const receipt = await createAlbumReceipt('photos/album/count-mismatch-new.webp')
+    const res = await request(app.getHttpServer())
+      .put(`/api/pages/${page.id}`)
+      .set('Authorization', `Bearer ${adminToken}`)
+      .send({ templateId: 'double-h', content: { imageReceipts: [receipt] } })
+
+    expect(res.status).toBe(400)
+    expect(res.body.message).toContain('double-h 模板需要 2 张图片')
+  })
+
+  it('PUT /pages/:id replaces one image and keeps the other via null', async () => {
+    const album = await prisma.album.create({ data: { year: 2032 } })
+    const page = await prisma.page.create({
+      data: {
+        albumId: album.id,
+        order: 1,
+        templateId: 'double-h',
+        content: JSON.stringify({
+          images: ['media://photos/album/old-first.webp', 'media://photos/album/keep-second.webp'],
+        }),
+      },
+    })
+    const receipt = await createAlbumReceipt('photos/album/replacement.webp')
+    const res = await request(app.getHttpServer())
+      .put(`/api/pages/${page.id}`)
+      .set('Authorization', `Bearer ${adminToken}`)
+      .send({ content: { imageReceipts: [receipt, null] } })
+
+    expect(res.status).toBe(200)
+    const stored = (await prisma.page.findUnique({ where: { id: page.id } }))?.content ?? ''
+    expect(stored).toContain('media://photos/album/replacement.webp')
+    expect(stored).toContain('media://photos/album/keep-second.webp')
+    expect(stored).not.toContain('media://photos/album/old-first.webp')
+  })
+
+  it('PUT /pages/:id updates photo-text text without replacing its images', async () => {
+    const album = await prisma.album.create({ data: { year: 2027 } })
+    const page = await prisma.page.create({
+      data: {
+        albumId: album.id,
+        order: 1,
+        templateId: 'photo-text',
+        content: JSON.stringify({ images: ['media://photos/album/kept.webp'], text: '旧文字' }),
+      },
+    })
+    const res = await request(app.getHttpServer())
+      .put(`/api/pages/${page.id}`)
+      .set('Authorization', `Bearer ${adminToken}`)
+      .send({ content: { text: '新文字' } })
+
+    expect(res.status).toBe(200)
+    expect(JSON.parse(res.body.content)).toMatchObject({ text: '新文字' })
+    expect((await prisma.page.findUnique({ where: { id: page.id } }))?.content).toContain('media://photos/album/kept.webp')
+  })
+
+  it('PUT /pages/:id keeps photo-text text when only images are replaced', async () => {
+    const album = await prisma.album.create({ data: { year: 2028 } })
+    const page = await prisma.page.create({
+      data: {
+        albumId: album.id,
+        order: 1,
+        templateId: 'photo-text',
+        content: JSON.stringify({ images: ['media://photos/album/old.webp'], text: '保留的文字' }),
+      },
+    })
+    const receipt = await createAlbumReceipt('photos/album/replaced.webp')
+    const res = await request(app.getHttpServer())
+      .put(`/api/pages/${page.id}`)
+      .set('Authorization', `Bearer ${adminToken}`)
+      .send({ content: { imageReceipts: [receipt] } })
+
+    expect(res.status).toBe(200)
+    expect(JSON.parse(res.body.content)).toMatchObject({ text: '保留的文字' })
+  })
+
   it('PUT /pages/nonexistent returns 404', async () => {
     const res = await request(app.getHttpServer())
       .put('/api/pages/nonexistent')
       .set('Authorization', `Bearer ${adminToken}`)
       .send({ templateId: 'single', content: { imageReceipts: [] } })
     expect(res.status).toBe(404)
+  })
+
+  it('PUT /pages/:id rejects null when there is no existing image to preserve', async () => {
+    const album = await prisma.album.create({ data: { year: 2030 } })
+    const page = await prisma.page.create({
+      data: {
+        albumId: album.id,
+        order: 1,
+        templateId: 'double-h',
+        content: JSON.stringify({ images: ['media://photos/album/present.webp', ''] }),
+      },
+    })
+    const res = await request(app.getHttpServer())
+      .put(`/api/pages/${page.id}`)
+      .set('Authorization', `Bearer ${adminToken}`)
+      .send({ content: { imageReceipts: [null, null] } })
+
+    expect(res.status).toBe(400)
+    expect(res.body.message).toContain('原图不存在，无法保留')
   })
 
   it('DELETE /pages/:id returns 204', async () => {
@@ -410,6 +807,41 @@ describe('Album API', () => {
       .set('Authorization', `Bearer ${adminToken}`)
       .send({ pageIds: [p2.id] })
     expect(res.status).toBe(400)
+  })
+
+  it('PUT /albums/:id/pages/reorder rejects duplicate page IDs', async () => {
+    const album = await prisma.album.create({ data: { year: 2026 } })
+    const p1 = await prisma.page.create({ data: { albumId: album.id, order: 1, templateId: 'single', content: '{"images":[]}' } })
+    const p2 = await prisma.page.create({ data: { albumId: album.id, order: 2, templateId: 'single', content: '{"images":[]}' } })
+    const res = await request(app.getHttpServer())
+      .put(`/api/albums/${album.id}/pages/reorder`)
+      .set('Authorization', `Bearer ${adminToken}`)
+      .send({ pageIds: [p1.id, p1.id] })
+
+    expect(res.status).toBe(400)
+    expect(res.body.message).toContain('pageIds must be unique')
+    expect((await prisma.page.findUnique({ where: { id: p2.id } }))?.order).toBe(2)
+  })
+
+  it('concurrent reorders leave every page with a unique continuous order', async () => {
+    const album = await prisma.album.create({ data: { year: 2043 } })
+    const pages = await Promise.all([1, 2, 3].map((order) => prisma.page.create({
+      data: { albumId: album.id, order, templateId: 'single', content: '{"images":[]}' },
+    })))
+    const responses = await Promise.all([
+      request(app.getHttpServer())
+        .put(`/api/albums/${album.id}/pages/reorder`)
+        .set('Authorization', `Bearer ${adminToken}`)
+        .send({ pageIds: [pages[2].id, pages[1].id, pages[0].id] }),
+      request(app.getHttpServer())
+        .put(`/api/albums/${album.id}/pages/reorder`)
+        .set('Authorization', `Bearer ${adminToken}`)
+        .send({ pageIds: [pages[1].id, pages[0].id, pages[2].id] }),
+    ])
+
+    expect(responses.map((response) => response.status).sort()).toEqual([200, 200])
+    const current = await prisma.page.findMany({ where: { albumId: album.id }, orderBy: { order: 'asc' } })
+    expect(current.map((page) => page.order)).toEqual([1, 2, 3])
   })
 
   // --- DR-002: 删除闭环 ---
